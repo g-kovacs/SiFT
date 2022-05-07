@@ -7,15 +7,18 @@ import SiFT.mtp
 from Crypto import Random
 from Crypto.Hash import SHA256
 from keygen import load_publickey
+from aioconsole import ainput
+
+loop_ = asyncio.get_event_loop()
 
 HOST = 'localhost'
 PORT = 5150
 
 
-class SimpleEchoClient(asyncio.Protocol):
+class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
 
-    def __init__(self, on_con_lost) -> None:
-        self.on_con_lost = on_con_lost
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+        self.loop = loop
         self.MTP = SiFT.mtp.ClientMTP(self)
         self.pubkey = load_publickey("server_pubkey")
 
@@ -24,12 +27,24 @@ class SimpleEchoClient(asyncio.Protocol):
         self.login()
 
     def data_received(self, data):
-        print('Data received: {!r}'.format(data.decode()))
-        type_and_payload_tuple = self.MTP.dissect(data)
+        # print('Data received: {!r}'.format(data.decode()))
+        msg_info = self.MTP.dissect(data)
+        if msg_info is None:        # Some error
+            self.loop.stop()
 
-    def connection_lost(self, exc):
+        self.guard.set_result(True)
+
+    def send_TCP(self, data):
+        self.transport.write(data)
+
+    async def handle_command(self, cmd):
+        self.guard = self.loop.create_future()
+        print(cmd)
+        await self.guard
+
+    def connection_lost(self):
         print('The server closed the connection')
-        self.on_con_lost.set_result(True)
+        self.loop.stop()
 
     def login(self):
         uname = input("Enter username: ")
@@ -42,23 +57,13 @@ class SimpleEchoClient(asyncio.Protocol):
         self.login_hash = hashfn.digest()
 
 
-async def main():
-    # Get a reference to the event loop as we plan to use
-    # low-level APIs.
-    loop = asyncio.get_running_loop()
-
-    on_con_lost = loop.create_future()
-
-    transport, protocol = await loop.create_connection(
-        lambda: SimpleEchoClient(on_con_lost),
-        HOST, PORT)
-
-    # Wait until the protocol signals that the connection
-    # is lost and close the transport.
-    try:
-        await on_con_lost
-    finally:
-        transport.close()
+async def main(client: SimpleEchoClient):
+    while True:
+        cmd = await ainput('Command >')
+        await client.handle_command(cmd)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    client = SimpleEchoClient(loop_)
+    coro = loop_.create_connection(lambda: client, HOST, PORT)
+    loop_.run_until_complete(coro)
+    loop_.run_until_complete(main(client))
