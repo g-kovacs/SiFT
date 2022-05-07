@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
 
 import asyncio
+from distutils.ccompiler import gen_lib_options
+import os.path as path
+from Crypto.Protocol.KDF import scrypt
 
 HOST = 'localhost'
 PORT = 5150
 
 
-class SimpleEchoServer(asyncio.Protocol):
+class Server(asyncio.Protocol):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.homedir = path.abspath("../data")
+        self.hash_salt = 'eznemegyerossalt'
+        self.logins = self.gen_login_hashes()
+
+    def gen_login_hashes(self):
+        plain = {"alice": "aaa", "bob": "bbb", "charlie": "ccc"}
+        logins = {}
+        for k in plain.keys():
+            h = scrypt(plain[k], self.hash_salt, 32, 8, 8, 1)
+            logins[k] = h
+        return logins
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
@@ -30,7 +47,7 @@ async def main():
     loop = asyncio.get_running_loop()
 
     server = await loop.create_server(
-        lambda: SimpleEchoServer(),
+        lambda: Server(),
         HOST, PORT)
 
     async with server:
