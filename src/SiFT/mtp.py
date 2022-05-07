@@ -59,10 +59,10 @@ class MTPEntity():
             important info are returned."""
 
         if not MTP.verify(msg):
-            return None
+            return (None,)*3
         header, payload = self.check_integrity(msg)
         if not payload:
-            return None
+            return (None,)*3
 
         typ = header[2:4]
         return typ, header, payload
@@ -97,7 +97,7 @@ class MTPEntity():
             print("Integrity check failed, droppping packet.")
             return None
         self.rcvd_sqn = sqn
-        return (header, payload)
+        return header, payload
 
     def send(self, data):
         self.host.send_TCP(data)
@@ -121,7 +121,7 @@ class ClientMTP(MTPEntity):
 
     def send_login_req(self, data, rsakey):
         tk = Random.get_random_bytes(32)
-        typ = b'\x00\x00'
+        typ = MTP.LOGIN_REQ
         msg_len = MTP.header_len + len(data) + MTP.mac_len + MTP.encr_keylen
         pdu = self.create_pdu(typ, msg_len, data, tk)
 
@@ -138,7 +138,7 @@ class ServerMTP(MTPEntity):
         super().__init__(server)
 
     def dissect(self, msg: bytes):
-        typ, payload = super().dissect(msg)
+        typ, header, payload = super().dissect(msg)
 
         if typ == MTP.LOGIN_REQ:
             return (typ, LoginRequest.from_bytes(payload))

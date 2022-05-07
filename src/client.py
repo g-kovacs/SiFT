@@ -45,8 +45,7 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
         print(cmd)
         await self.guard
 
-    def connection_lost(self):
-        print('The server closed the connection')
+    def connection_lost(self, exc):
         self.loop.stop()
 
     def login(self):
