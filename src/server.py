@@ -14,7 +14,7 @@ class Server(asyncio.Protocol):
 
     def __init__(self) -> None:
         super().__init__()
-        self.MTP = ServerMTP()
+        self.MTP = ServerMTP(self)
         self.homedir = path.abspath("../data")
         self.hash_salt = 'eznemegyerossalt'
         self.logins = self.gen_login_hashes()
@@ -36,9 +36,6 @@ class Server(asyncio.Protocol):
     def data_received(self, data):
         message = self.MTP.dissect(data)
         print('Data received: {!r}'.format(message))
-
-        print('Send: {!r}'.format(message))
-        self.transport.write(data)
 
         print('Close the client socket')
         self.transport.close()
