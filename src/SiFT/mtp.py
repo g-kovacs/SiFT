@@ -1,3 +1,4 @@
+from tkinter import COMMAND
 from Crypto import Random
 from Crypto.Cipher import AES, PKCS1_OAEP
 from SiFT.login import LoginRequest
@@ -11,6 +12,15 @@ class MTP:
     mac_len = 12
     encr_keylen = 256
     LOGIN_REQ = b'\x00\x00'
+    LOGIN_RES = b'\x00\x10'
+    COMMAND_REQ = b'\x01\x00'
+    COMMAND_RES = b'\x01\x10'
+    UPLOAD_REQ_0 = b'\x02\x00'
+    UPLOAD_REQ_1 = b'\x02\x01'
+    UPLOAD_RES = b'\x02\x10'
+    DNLOAD_REQ = b'\x03\x00'
+    DNLOAD_RES_0 = b'\x03\x10'
+    DNLOAD_RES_1 = b'\x03\x11'
 
     def create_header(typ: bytes, len: int, sqn: int, rnd: bytes) -> bytes:
         header = MTP.version + typ
@@ -118,4 +128,7 @@ class ServerMTP(MTPEntity):
             return (typ, LoginRequest.from_bytes(payload))
 
     def send_login_res(self, transport, data):
+        pass
+
+    def send_command_res(self):
         pass
