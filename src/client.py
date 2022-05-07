@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
 import asyncio
+import getpass
+import SiFT.login
+from Crypto import Random
+from Crypto.Hash import SHA256
 
 HOST = 'localhost'
 PORT = 5150
@@ -12,7 +16,8 @@ class SimpleEchoClient(asyncio.Protocol):
         self.on_con_lost = on_con_lost
 
     def connection_made(self, transport):
-        msg = input()
+        self.login()
+        msg = input("message: ")
         transport.write(msg.encode())
 
     def data_received(self, data):
@@ -21,6 +26,15 @@ class SimpleEchoClient(asyncio.Protocol):
     def connection_lost(self, exc):
         print('The server closed the connection')
         self.on_con_lost.set_result(True)
+
+    def login(self):
+        uname = input("Enter username: ")
+        pw = getpass.getpass("enter password: ")
+        rnd = Random.get_random_bytes(16)
+        login_req = SiFT.login.LoginRequest(uname, pw, rnd).get_request()
+        hashfn = SHA256.new()
+        hashfn.update(login_req)
+        self.login_hash = hashfn.digest()
 
 
 async def main():
