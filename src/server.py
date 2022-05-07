@@ -34,8 +34,8 @@ class Server(asyncio.Protocol):
         self.transport = transport
 
     def data_received(self, data):
-        success, msg_info = self.MTP.dissect(data)
-        if not success:
+        msg_info = self.MTP.dissect(data)
+        if msg_info is None:
             return
         print('Data received: {!r}'.format(msg_info))
 
