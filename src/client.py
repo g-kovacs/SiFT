@@ -20,7 +20,10 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
         self.MTP = SiFT.mtp.ClientMTP(self)
-        self.pubkey = load_publickey("server_pubkey")
+        self.key = load_publickey("server_pubkey")
+
+    def get_key(self):
+        return self.key
 
     def connection_made(self, transport):
         self.transport = transport
@@ -51,7 +54,7 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
         pw = getpass.getpass("enter password: ")
         rnd = Random.get_random_bytes(16)
         login_req = SiFT.login.LoginRequest(uname, pw, rnd).get_request()
-        self.MTP.send_login_req(login_req, self.pubkey)
+        self.MTP.send_login_req(login_req, self.key)
         hashfn = SHA256.new()
         hashfn.update(login_req)
         self.login_hash = hashfn.digest()

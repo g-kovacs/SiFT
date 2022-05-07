@@ -7,6 +7,9 @@ class ITCP:
     def send_TCP(self, data):
         pass
 
+    def get_key(self):
+        pass
+
 
 class MTP:
     encoding = 'utf_8'
@@ -48,6 +51,7 @@ class MTP:
 class MTPEntity():
     def __init__(self, host: ITCP) -> None:
         self.sqn = 1
+        self.rcvd_sqn = None
         self.host = host
 
     def dissect(self, msg: bytes):
@@ -61,19 +65,26 @@ class MTPEntity():
             return None
 
         typ = header[2:4]
-        return typ, payload
+        return typ, header, payload
 
     def check_integrity(self, msg: bytes):
         header, data = msg[0:MTP.header_len], msg[MTP.header_len:]
         data_len = int.from_bytes(header[4:6], 'big')
-        if msg[2:4] == b'\x00\x00':         # login_req
+        sqn = int.from_bytes(msg[6:8], 'big')
+        if msg[2:4] == MTP.LOGIN_REQ:         # login_req
+            if sqn != 1:    # login req with wrong sqn
+                return None
             payload_len = data_len - MTP.mac_len - MTP.encr_keylen - MTP.header_len
             encr_tk = data[-MTP.encr_keylen:]
         else:                               # everything else
+            if sqn != 1 and msg[2:4] == MTP.LOGIN_RES:
+                return None
+            if sqn <= self.rcvd_sqn:
+                return None
             payload_len = data_len - MTP.header_len - MTP.mac_len
         encr_payload = data[0:payload_len]
         authtag = data[payload_len: payload_len + MTP.mac_len]
-        if msg[2:4] == b'\x00\x00':         # login_req
+        if msg[2:4] == MTP.LOGIN_REQ:         # login_req
             RSA_cipher = PKCS1_OAEP.new(self.host.get_key())
             aes_key = RSA_cipher.decrypt(encr_tk)
         else:
@@ -85,6 +96,7 @@ class MTPEntity():
         except Exception as e:
             print("Integrity check failed, droppping packet.")
             return None
+        self.rcvd_sqn = sqn
         return (header, payload)
 
     def send(self, data):
