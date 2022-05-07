@@ -36,7 +36,7 @@ class SimpleEchoClient(asyncio.Protocol):
         pw = getpass.getpass("enter password: ")
         rnd = Random.get_random_bytes(16)
         login_req = SiFT.login.LoginRequest(uname, pw, rnd).get_request()
-        self.MTP.send_login_req(self.transport, login_req, self.pubkey)
+        self.MTP.send_login_req(login_req, self.pubkey)
         hashfn = SHA256.new()
         hashfn.update(login_req)
         self.login_hash = hashfn.digest()
