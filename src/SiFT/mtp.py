@@ -16,18 +16,39 @@ class MTP:
         header += rnd + MTP.rsv
         return header
 
-
-class MTPEntity():
-
-    def dissect(self, msg: bytes):
+    def verify(msg: bytes) -> bool:
         if msg[0:2] != MTP.version:
             return False
         if len(msg) != int.from_bytes(msg[4:6], 'big'):
             return False
-        return True, msg
+
+
+class MTPEntity():
+    def __init__(self) -> None:
+        self.sqn = 1
+
+    def dissect(self, msg: bytes):
+        if not MTP.verify(msg):
+            return None
+
+        # decrpt emg minden szar
+        # .....
+        # idáig
+
+        # if typ == login_req
+        # return (typ, ts, )
+        return (msg[0:MTP.header_len], msg[MTP.header_len:])
 
     def send(self, transport, data):
         transport.write(data)
+
+    def create_pdu(self, typ, length, payload, AES_key) -> bytes:
+        r = Random.get_random_bytes(6)
+        header = MTP.create_header(typ, length, self.sqn, r)
+        nonce = self.sqn.to_bytes(2, 'big') + r
+        AE = AES.new(AES_key, AES.MODE_GCM, nonce=nonce, mac_len=MTP.mac_len)
+        encr_data, authtag = AE.encrypt_and_digest(payload)
+        return header + encr_data + authtag
 
 
 class ClientMTP(MTPEntity):
@@ -39,21 +60,14 @@ class ClientMTP(MTPEntity):
         return super().dissect(msg)
 
     def send_login_req(self, data, rsakey):
-        r = Random.get_random_bytes(6)
         tk = Random.get_random_bytes(32)
         typ = b'\x00\x00'
         msg_len = MTP.header_len + len(data) + MTP.mac_len + 256
-        sqn = 1
-        header = MTP.create_header(typ, msg_len, sqn, r)
-
-        nonce = sqn.to_bytes(2, 'big') + r
-        AE = AES.new(tk, AES.MODE_GCM, nonce=nonce, mac_len=MTP.mac_len)
-        encr_data, authtag = AE.encrypt_and_digest(data)
+        pdu = self.create_pdu(typ, msg_len, data, tk)
 
         RSAcipher = PKCS1_OAEP.new(rsakey)
         encr_tk = RSAcipher.encrypt(tk)
-        self.send(self.client.transport, header +
-                  encr_data + authtag + encr_tk)
+        self.send(self.client.transport, pdu + encr_tk)
 
 
 class ServerMTP(MTPEntity):
