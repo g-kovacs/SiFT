@@ -30,6 +30,11 @@ class LoginRequest():
         self.rnd = rnd
         self.ts = ts
 
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, LoginRequest):
+            return False
+        return self.get_request() == __o.get_request()
+
     def get_request(self) -> bytes:
         return bytes(f'{self.ts}\n{self.uname}\n{self.pw}\n', _encoding) + self.rnd
 
