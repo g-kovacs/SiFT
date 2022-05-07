@@ -9,7 +9,7 @@ class LoginBase:
 
 
 class LoginRequest(LoginBase):
-    def __init__(self, uname, pw, rnd: bytes) -> None:
+    def __init__(self, uname: str, pw: str, rnd: bytes) -> None:
         super().__init__()
         self.uname = uname
         self.pw = pw
