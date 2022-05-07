@@ -20,7 +20,11 @@ class MTP:
 class MTPEntity():
 
     def dissect(self, msg: bytes):
-        return msg
+        if msg[0:2] != MTP.version:
+            return False
+        if len(msg) != int.from_bytes(msg[4:6], 'big'):
+            return False
+        return True, msg
 
     def send(self, transport, data):
         transport.write(data)

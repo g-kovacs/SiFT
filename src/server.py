@@ -34,8 +34,10 @@ class Server(asyncio.Protocol):
         self.transport = transport
 
     def data_received(self, data):
-        message = self.MTP.dissect(data)
-        print('Data received: {!r}'.format(message))
+        success, msg_info = self.MTP.dissect(data)
+        if not success:
+            return
+        print('Data received: {!r}'.format(msg_info))
 
         print('Close the client socket')
         self.transport.close()
