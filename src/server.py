@@ -2,31 +2,23 @@
 
 import asyncio
 import os.path as path
-from Crypto.Protocol.KDF import scrypt
-from SiFT.mtp import ServerMTP, MTP
+from SiFT.mtp import ServerMTP, MTP, ITCP
+import SiFT.login as login
 from keygen import load_keypair
 
 HOST = 'localhost'
 PORT = 5150
 
 
-class Server(asyncio.Protocol):
+class Server(asyncio.Protocol, ITCP):
+    _sessions = {}
 
     def __init__(self) -> None:
         super().__init__()
         self.MTP = ServerMTP(self)
         self.homedir = path.abspath("../data")
-        self.hash_salt = 'eznemegyerossalt'
-        self.logins = self.gen_login_hashes()
+        self.logins = login.Logins('eznemegyerossalt')
         self.keypair = load_keypair("privkey")
-
-    def gen_login_hashes(self):
-        plain = {"alice": "aaa", "bob": "bbb", "charlie": "ccc"}
-        logins = {}
-        for k in plain.keys():
-            h = scrypt(plain[k], self.hash_salt, 32, 8, 8, 1)
-            logins[k] = h
-        return logins
 
     def get_key(self):
         return self.keypair
@@ -36,17 +28,20 @@ class Server(asyncio.Protocol):
         print('Connection from {}'.format(peername))
         self.transport = transport
 
+    async def send_TCP(self, data):
+        pass
+
     def data_received(self, data):
         msg_info = self.MTP.dissect(data)
         if msg_info is None:        # Some error
             self.transport.close()
             return
+        self.handle_message(msg_info)
+
+    def handle_message(self, msg_info: tuple):
         typ = msg_info[0]
         if typ == MTP.LOGIN_REQ:
-            print('Data received: {!r}'.format(msg_info[1].pw))
-
-        print('Close the client socket')
-        self.transport.close()
+            pass
 
 
 async def main():
