@@ -3,6 +3,11 @@ from Crypto.Cipher import AES, PKCS1_OAEP
 from SiFT.login import LoginRequest
 
 
+class ITCP:
+    def send_TCP(self, data):
+        pass
+
+
 class MTP:
     encoding = 'utf_8'
     version = b'\x01\x00'
@@ -41,7 +46,7 @@ class MTP:
 
 
 class MTPEntity():
-    def __init__(self, host) -> None:
+    def __init__(self, host: ITCP) -> None:
         self.sqn = 1
         self.host = host
 
@@ -82,8 +87,8 @@ class MTPEntity():
             return None
         return (header, payload)
 
-    def send(self, transport, data):
-        transport.write(data)
+    def send(self, data):
+        self.host.send_TCP(data)
         self.sqn += 1
 
     def create_pdu(self, typ, length, payload, AES_key) -> bytes:
@@ -110,7 +115,7 @@ class ClientMTP(MTPEntity):
 
         RSAcipher = PKCS1_OAEP.new(rsakey)
         encr_tk = RSAcipher.encrypt(tk)
-        self.send(self.host.transport, pdu + encr_tk)
+        self.send(pdu + encr_tk)
 
     def send_command_req(self):
         pass
