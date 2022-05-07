@@ -2,8 +2,10 @@ import time
 
 
 class LoginBase:
+    encoding = 'utf_8'
+
     def __init__(self) -> None:
-        self.str_encoding = 'UTF-8'
+        pass
 
 
 class LoginRequest(LoginBase):
@@ -15,7 +17,7 @@ class LoginRequest(LoginBase):
         self.ts = time.time_ns()
 
     def get_request(self) -> bytes:
-        return bytes(f'{self.ts}\n{self.uname}\n{self.pw}\n{self.rnd}', self.str_encoding)
+        return bytes(f'{self.ts}\n{self.uname}\n{self.pw}\n{self.rnd}', LoginBase.encoding)
 
 
 class LoginResponse(LoginBase):
