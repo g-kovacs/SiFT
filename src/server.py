@@ -3,7 +3,7 @@
 import asyncio
 import os.path as path
 from Crypto.Protocol.KDF import scrypt
-from SiFT.mtp import ServerMTP
+from SiFT.mtp import ServerMTP, MTP
 from keygen import load_keypair
 
 HOST = 'localhost'
@@ -28,6 +28,9 @@ class Server(asyncio.Protocol):
             logins[k] = h
         return logins
 
+    def get_key(self):
+        return self.keypair
+
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
         print('Connection from {}'.format(peername))
@@ -35,9 +38,12 @@ class Server(asyncio.Protocol):
 
     def data_received(self, data):
         msg_info = self.MTP.dissect(data)
-        if msg_info is None:
+        if msg_info is None:        # Some error
+            self.transport.close()
             return
-        print('Data received: {!r}'.format(msg_info))
+        typ = msg_info[0]
+        if typ == MTP.LOGIN_REQ:
+            print('Data received: {!r}'.format(msg_info[1].pw))
 
         print('Close the client socket')
         self.transport.close()
