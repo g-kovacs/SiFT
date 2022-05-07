@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import asyncio
-from distutils.ccompiler import gen_lib_options
 import os.path as path
 from Crypto.Protocol.KDF import scrypt
+from SiFT.mtp import ServerMTP
+from keygen import load_keypair
 
 HOST = 'localhost'
 PORT = 5150
@@ -13,9 +14,11 @@ class Server(asyncio.Protocol):
 
     def __init__(self) -> None:
         super().__init__()
+        self.MTP = ServerMTP()
         self.homedir = path.abspath("../data")
         self.hash_salt = 'eznemegyerossalt'
         self.logins = self.gen_login_hashes()
+        self.keypair = load_keypair("privkey")
 
     def gen_login_hashes(self):
         plain = {"alice": "aaa", "bob": "bbb", "charlie": "ccc"}
@@ -31,7 +34,7 @@ class Server(asyncio.Protocol):
         self.transport = transport
 
     def data_received(self, data):
-        message = data.decode()
+        message = self.MTP.dissect(data)
         print('Data received: {!r}'.format(message))
 
         print('Send: {!r}'.format(message))
