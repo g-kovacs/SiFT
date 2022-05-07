@@ -5,6 +5,7 @@ import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 import SiFT.login as login
 from keygen import load_keypair
+from time import time_ns
 
 HOST = 'localhost'
 PORT = 5150
@@ -18,18 +19,18 @@ class Server(asyncio.Protocol, ITCP):
         self.MTP = ServerMTP(self)
         self.homedir = path.abspath("../data")
         self.logins = login.Logins('eznemegyerossalt')
-        self.keypair = load_keypair("privkey")
+        self.key = load_keypair("privkey")
 
     def get_key(self):
-        return self.keypair
+        return self.key
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
         print('Connection from {}'.format(peername))
         self.transport = transport
 
-    async def send_TCP(self, data):
-        pass
+    def send_TCP(self, data):
+        self.transport.write(data)
 
     def data_received(self, data):
         msg_info = self.MTP.dissect(data)
@@ -41,7 +42,11 @@ class Server(asyncio.Protocol, ITCP):
     def handle_message(self, msg_info: tuple):
         typ = msg_info[0]
         if typ == MTP.LOGIN_REQ:
-            pass
+            self.handle_login_req(msg_info[1])
+
+    def handle_login_req(self, req: login.LoginRequest):
+        if not req.valid_timestamp(time_ns(), 2):
+            self.transport.close()
 
 
 async def main():
