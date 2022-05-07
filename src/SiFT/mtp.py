@@ -1,4 +1,3 @@
-from tkinter import COMMAND
 from Crypto import Random
 from Crypto.Cipher import AES, PKCS1_OAEP
 from SiFT.login import LoginRequest
