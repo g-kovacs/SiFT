@@ -50,5 +50,6 @@ class LoginRequest():
 
 
 class LoginResponse():
-    def __init__(self) -> None:
-        pass
+    def __init__(self, req: LoginRequest, rnd: bytes) -> None:
+        self.req = req
+        self.rnd = rnd

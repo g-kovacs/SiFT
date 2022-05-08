@@ -3,9 +3,8 @@
 import asyncio
 import getpass
 import SiFT.login
-import SiFT.mtp
+import SiFT.mtp as mtp
 from Crypto import Random
-from Crypto.Hash import SHA256
 from rsa_keygen import load_publickey
 from aioconsole import ainput
 import sys
@@ -19,18 +18,20 @@ PORT = 5150
 keyfile = None
 
 
-class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
+class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
 
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
-        self.MTP = SiFT.mtp.ClientMTP(self)
+        self.MTP = mtp.ClientMTP(self)
         self.key = load_publickey(keyfile)
+        self.guard = None
 
-    def get_key(self):
+    def get_RSA(self):
         return self.key
 
     def connection_made(self, transport):
         self.transport = transport
+        # first step is a login
         self.login()
 
     def data_received(self, data):
@@ -38,8 +39,14 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
         msg_info = self.MTP.dissect(data)
         if msg_info is None:        # Some error
             self.loop.stop()
+        self.handle_message(msg_info)
+        if self.guard:
+            self.guard.set_result(True)
 
-        self.guard.set_result(True)
+    def handle_message(self, msg_info: tuple):
+        typ = msg_info[0]
+        if typ == mtp.MTP.LOGIN_RES:
+            print("lololo")
 
     def send_TCP(self, data):
         self.transport.write(data)
@@ -53,15 +60,13 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
         self.loop.stop()
 
     def login(self):
+        # login_req with uname, passwd, random and a timestamp
         uname = input("Enter username: ")
         pw = getpass.getpass("enter password: ")
         rnd = Random.get_random_bytes(16)
         login_req = SiFT.login.LoginRequest(
-            uname, pw, rnd, time_ns()).get_request()
+            uname, pw, rnd, time_ns())
         self.MTP.send_login_req(login_req, self.key)
-        hashfn = SHA256.new()
-        hashfn.update(login_req)
-        self.login_hash = hashfn.digest()
 
 
 async def main(client: SimpleEchoClient):
@@ -98,5 +103,5 @@ if __name__ == "__main__":
         loop_.run_until_complete(main(client))
         sys.exit(0)
     except Exception as e:
-        print("Bye.")
+        print("\nBye.")
         sys.exit(1)

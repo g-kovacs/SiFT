@@ -3,6 +3,7 @@
 import asyncio
 import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
+from Crypto import Random
 import SiFT.login as login
 from rsa_keygen import load_keypair
 from time import time_ns
@@ -24,7 +25,7 @@ class Server(asyncio.Protocol, ITCP):
         self.logins = login.Logins('eznemegyerossalt')
         self.key = load_keypair(keyfile)
 
-    def get_key(self):
+    def get_RSA(self):
         return self.key
 
     def connection_made(self, transport):
@@ -49,8 +50,11 @@ class Server(asyncio.Protocol, ITCP):
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 2):
-            print("timestamp error")
             self.transport.close()
+        if not self.logins.check_login(req.uname, req.pw):
+            self.transport.close()
+        self.MTP.send_login_res(login.LoginResponse(
+            req, Random.get_random_bytes(16)))
 
 
 async def main():

@@ -1,13 +1,15 @@
 from Crypto import Random
+from Crypto.Protocol.KDF import HKDF
+from Crypto.Hash import SHA256
 from Crypto.Cipher import AES, PKCS1_OAEP
-from SiFT.login import LoginRequest
+from SiFT.login import LoginRequest, LoginResponse
 
 
 class ITCP:
     def send_TCP(self, data):
         pass
 
-    def get_key(self):
+    def get_RSA(self):
         pass
 
 
@@ -49,10 +51,11 @@ class MTP:
 
 
 class MTPEntity():
-    def __init__(self, host: ITCP) -> None:
+    def __init__(self, host: ITCP, key=None) -> None:
         self.sqn = 1
         self.rcvd_sqn = None
         self.host = host
+        self.key = key
 
     def dissect(self, msg: bytes):
         """Check integrity of the message. If the message is valid, it is dissected, type and 
@@ -71,24 +74,25 @@ class MTPEntity():
         header, data = msg[0:MTP.header_len], msg[MTP.header_len:]
         data_len = int.from_bytes(header[4:6], 'big')
         sqn = int.from_bytes(msg[6:8], 'big')
-        if msg[2:4] == MTP.LOGIN_REQ:         # login_req
+        typ = msg[2:4]
+        if typ == MTP.LOGIN_REQ:         # login_req
             if sqn != 1:    # login req with wrong sqn
                 return None
             payload_len = data_len - MTP.mac_len - MTP.encr_keylen - MTP.header_len
             encr_tk = data[-MTP.encr_keylen:]
         else:                               # everything else
-            if sqn != 1 and msg[2:4] == MTP.LOGIN_RES:
+            if sqn != 1 and typ == MTP.LOGIN_RES:
                 return None
-            if sqn <= self.rcvd_sqn:
+            elif self.rcvd_sqn and sqn <= self.rcvd_sqn:
                 return None
             payload_len = data_len - MTP.header_len - MTP.mac_len
         encr_payload = data[0:payload_len]
         authtag = data[payload_len: payload_len + MTP.mac_len]
-        if msg[2:4] == MTP.LOGIN_REQ:         # login_req
-            RSA_cipher = PKCS1_OAEP.new(self.host.get_key())
+        if typ == MTP.LOGIN_REQ:         # login_req
+            RSA_cipher = PKCS1_OAEP.new(self.host.get_RSA())
             aes_key = RSA_cipher.decrypt(encr_tk)
         else:
-            aes_key = self.host.get_key()
+            aes_key = self.key
         nonce = msg[6:14]               # sqn + rnd
         AE = AES.new(aes_key, AES.MODE_GCM, nonce=nonce, mac_len=MTP.mac_len)
         try:
@@ -97,6 +101,8 @@ class MTPEntity():
             print("Integrity check failed, droppping packet.")
             return None
         self.rcvd_sqn = sqn
+        if typ == MTP.LOGIN_REQ:
+            self.key = aes_key
         return header, payload
 
     def send(self, data):
@@ -111,22 +117,43 @@ class MTPEntity():
         encr_data, authtag = AE.encrypt_and_digest(payload)
         return header + encr_data + authtag
 
+    def send_message(self, typ, data):
+        msg_len = MTP.header_len + len(data) + MTP.mac_len
+        pdu = self.create_pdu(typ, msg_len, data, self.key)
+        self.send(pdu)
+
 
 class ClientMTP(MTPEntity):
     def __init__(self, client) -> None:
         super().__init__(client)
 
     def dissect(self, msg: bytes):
-        return super().dissect(msg)
+        typ, header, payload = super().dissect(msg)
+        if typ == MTP.LOGIN_RES:
+            rh = payload[0:-16]
+            if rh != self.login_hash:
+                return None
+            srand = payload[-16:]
+            self.key = HKDF(self.rnd + srand, 32, rh, SHA256, 1)
+            del self.rnd
+            return (typ,)
 
-    def send_login_req(self, data, rsakey):
-        tk = Random.get_random_bytes(32)
+    def send_login_req(self, req: LoginRequest, rsakey):
+        data = req.get_request()
+        self.key = Random.get_random_bytes(32)      # tk
         typ = MTP.LOGIN_REQ
         msg_len = MTP.header_len + len(data) + MTP.mac_len + MTP.encr_keylen
-        pdu = self.create_pdu(typ, msg_len, data, tk)
+        pdu = self.create_pdu(typ, msg_len, data, self.key)
 
         RSAcipher = PKCS1_OAEP.new(rsakey)
-        encr_tk = RSAcipher.encrypt(tk)
+        encr_tk = RSAcipher.encrypt(self.key)
+
+        # store request hash
+        hashfn = SHA256.new()
+        hashfn.update(data)
+        self.login_hash = hashfn.digest()
+        self.rnd = req.rnd
+
         self.send(pdu + encr_tk)
 
     def send_command_req(self):
@@ -143,8 +170,14 @@ class ServerMTP(MTPEntity):
         if typ == MTP.LOGIN_REQ:
             return (typ, LoginRequest.from_bytes(payload))
 
-    def send_login_res(self, transport, data):
-        pass
+    def send_login_res(self, res: LoginResponse):
+        hashfn = SHA256.new()
+        hashfn.update(res.req.get_request())
+        request_hash = hashfn.digest()
+        # send login_res
+        self.send_message(MTP.LOGIN_RES, request_hash + res.rnd)
+        # update key
+        self.key = HKDF(res.req.rnd + res.rnd, 32, request_hash, SHA256, 1)
 
     def send_command_res(self):
         pass
