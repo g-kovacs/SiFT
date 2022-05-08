@@ -1,7 +1,7 @@
 import os
+from pathlib import Path
 from SiFT.mtp import MTPEntity, MTP
 from Crypto.Hash import SHA256
-from os import listdir
 from base64 import b64decode, b64encode
 
 
@@ -53,7 +53,6 @@ class CommandHandler:
         # if command not in []:
         #       return
         if command == 'pwd':
-            print("FASZ")
             return self.handle_pwd(cmd_b, l)
         elif command == 'lst':
             return self.handle_lst(cmd_b, l)
@@ -73,11 +72,9 @@ class CommandHandler:
 class ServerCommandHandler(CommandHandler):
     def __init__(self, host, dir) -> None:
         super().__init__(host)
-        self.rootdir: str = dir
-        self.cwd: str = dir
-        # Kell mivel os.getcwd() a command.py lokációját adja meg current directorynak
-        os.chdir(self.cwd)
-        # Itt beállítjuk hogy a server directoryja legyen a current directory
+        self.rootdir = Path(os.path.abspath(dir))
+        self.cwd = self.rootdir     # abs path of cwd
+        os.chdir(self.rootdir)
 
     """defines what happens when pwd command is executed
         when pwd command is valid the correct response packet is created
@@ -88,10 +85,14 @@ class ServerCommandHandler(CommandHandler):
         cmd_s = cmd_b.decode(MTP.encoding)
         hashval = self.hash_command(cmd_b)
         params = cmd_s.split('\n')
+        path = "/"
+        path += self.cwd.name if self.cwd == self.rootdir else str(
+            Path.relative_to(self.cwd, self.rootdir.parent))
 
         if len(params) == 1:
             status = 'success'
-            resp = '\n'.join(['pwd', hashval, status, self.cwd])
+            resp = '\n'.join(
+                ['pwd', hashval, status, path])
         else:
             status = 'failure'
             resp = '\n'.join(['pwd', hashval, status, 'Too many arguments'])
@@ -100,7 +101,7 @@ class ServerCommandHandler(CommandHandler):
     def handle_lst(self, cmd_b: bytes, l):
         hashval = self.hash_command(cmd_b)
         status = 'success'
-        ls = '\t'.join(listdir(self.cwd))
+        ls = '\t'.join(os.listdir(str(self.cwd)))
         enc_ls = base64e(ls)
         resp = '\n'.join(['lst', hashval, status, enc_ls])
         return self.send(resp.encode(MTP.encoding))
@@ -114,19 +115,22 @@ class ServerCommandHandler(CommandHandler):
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
         try:
-            os.chdir(params[1])
-        except:
+            valid = [str(p) for p in Path(os.path.realpath(
+                self.cwd / params[1])).parents]
+            if str(self.rootdir.parent) not in valid:
+                raise Exception("Cannot leave root directory.")
+            os.chdir(self.cwd / params[1])
+        except Exception as e:
             status = "failure"
-            resp = '\n'.join(['chd', hashval, status, 'Not a valid directory'])
+            resp = '\n'.join(['chd', hashval, status, e.args[0]])
         else:
-            # ez nem működik
-            # if os.getcwd() == "../data/server..":
-            self.cwd = os.getcwd()
+            if params[1] == "..":
+                self.cwd = self.cwd.parent
+            elif params[1] != ".":
+                self.cwd = self.cwd / params[1]
+            print(self.cwd)
             status = 'success'
             resp = '\n'.join(['chd', hashval, status])
-            # else:
-            #status = 'failure'
-            #resp= '\n'.join(['chd',hashval, status, 'Cannot access this directory'])
 
         return self.send(resp.encode(MTP.encoding))
 
@@ -151,7 +155,7 @@ class ClientCommandHandler(CommandHandler):
         if l[1] != self.last_cmd_hash:
             return False
         if l[2] != 'success':
-            pass
+            print(l[3])
         ls = base64d(l[3]).split('\t')
         for p in ls:
             print(p)
