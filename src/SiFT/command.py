@@ -42,6 +42,11 @@ class CommandHandler:
     def last_sent(self, cmd: bytes):
         self.last_cmd_hash = self.hash_command(cmd)
 
+    def send(self, data: bytes):
+        mtp: MTPEntity = self.host.MTP
+        mtp.send_message(MTP.COMMAND_RES, data)
+        return True
+
     def handle(self, cmd_b: bytes):
         cmd_str = cmd_b.decode(MTP.encoding)
         l = cmd_str.split('\n')
@@ -66,13 +71,20 @@ class ServerCommandHandler(CommandHandler):
         self.rootdir: str = dir
         self.cwd: str = dir
 
+    # defines what happens when pwd command is executed
+    # when pwd command is valid the correct response packet is created
+    # when pwd command is invalid error is returned
     def handle_pwd(self, cmd_b: bytes, l):
+        cmd_s = cmd_b.decode(MTP.encoding)
         hashval = self.hash_command(cmd_b)
-        status = 'success' if True else 'failure'
-        resp = '\n'.join(['pwd', hashval, status, self.cwd])
-        mtp: MTPEntity = self.host.MTP
-        mtp.send_message(MTP.COMMAND_RES, resp.encode(MTP.encoding))
-        return True
+        params = cmd_s.split('\n')
+        if len(params) == 1:
+            status = 'success'
+            resp = '\n'.join(['pwd', hashval, status, self.cwd])
+        else:
+            status = 'failure'
+            resp = '\n'.join(['pwd', hashval, status, 'Too many arguments'])
+        return self.send(resp.encode(MTP.encoding))
 
     def handle_lst(self, cmd_b: bytes, l):
         hashval = self.hash_command(cmd_b)
@@ -80,9 +92,7 @@ class ServerCommandHandler(CommandHandler):
         ls = '\t'.join(listdir(self.cwd))
         enc_ls = base64e(ls)
         resp = '\n'.join(['lst', hashval, status, enc_ls])
-        mtp: MTPEntity = self.host.MTP
-        mtp.send_message(MTP.COMMAND_RES, resp.encode(MTP.encoding))
-        return True
+        return self.send(resp.encode(MTP.encoding))
 
 
 class ClientCommandHandler(CommandHandler):
