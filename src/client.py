@@ -63,6 +63,9 @@ class Client(asyncio.Protocol, ITCP):
         self.transport.write(data)
 
     async def handle_command(self, cmd):
+        c = cmd.split('\n')
+        if c not in ['pwd', 'lst', 'chd', 'mkd', 'del', 'upl', 'dnl']:
+            return
         self.guard = self.loop.create_future()
         Command(cmd, self).execute()
         await self.guard
