@@ -2,8 +2,9 @@
 import os.path as path
 import asyncio
 import getpass
-import SiFT.login
-import SiFT.mtp as mtp
+from SiFT.login import LoginRequest
+from SiFT.mtp import ITCP, ClientMTP, MTP
+from SiFT.command import Command
 from Crypto import Random
 from rsa_keygen import load_publickey
 from aioconsole import ainput
@@ -18,11 +19,11 @@ PORT = 5150
 keyfile = None
 
 
-class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
+class SimpleEchoClient(asyncio.Protocol, ITCP):
 
     def __init__(self, loop: asyncio.AbstractEventLoop, homedir) -> None:
         self.loop = loop
-        self.MTP = mtp.ClientMTP(self)
+        self.MTP = ClientMTP(self)
         self.key = load_publickey(keyfile)
         self.guard = loop_.create_future()
         self.homedir = homedir
@@ -41,12 +42,11 @@ class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
         if msg_info is None:        # Some error
             self.loop.stop()
         self.handle_message(msg_info)
-        if self.guard:
-            self.guard.set_result(True)
+        self.guard.set_result(True)
 
     def handle_message(self, msg_info: tuple):
         typ = msg_info[0]
-        if typ == mtp.MTP.LOGIN_RES:
+        if typ == MTP.LOGIN_RES:
             print("Login successful!")
 
     def send_TCP(self, data):
@@ -55,6 +55,7 @@ class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
     async def handle_command(self, cmd):
         print(cmd)
         # self.guard = self.loop.create_future()
+        Command(cmd, self.MTP).execute()
         # await self.guard
 
     def connection_lost(self, exc):
@@ -65,7 +66,7 @@ class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
         uname = input("Enter username: ")
         pw = getpass.getpass("enter password: ")
         rnd = Random.get_random_bytes(16)
-        login_req = SiFT.login.LoginRequest(
+        login_req = LoginRequest(
             uname, pw, rnd, time_ns())
         self.MTP.send_login_req(login_req, self.key)
 

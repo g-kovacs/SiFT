@@ -5,6 +5,7 @@ import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
+from SiFT.src.SiFT.command import CommandHandler
 from rsa_keygen import load_keypair
 from time import time_ns
 import sys
@@ -21,7 +22,7 @@ class Server(asyncio.Protocol, ITCP):
     def __init__(self, dir) -> None:
         super().__init__()
         self.MTP = ServerMTP(self)
-        self.rootdir = dir
+        self.handler = CommandHandler(dir)
         self.logins = login.Logins('eznemegyerossalt')
         self.key = load_keypair(keyfile)
 
@@ -47,6 +48,8 @@ class Server(asyncio.Protocol, ITCP):
         typ = msg_info[0]
         if typ == MTP.LOGIN_REQ:
             self.handle_login_req(msg_info[1])
+        if typ == MTP.COMMAND_REQ:
+            self.handler.handle(msg_info[1])
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 2):
