@@ -51,10 +51,21 @@ class ServerCommandHandler(CommandHandler):
         self.rootdir: str = dir
         self.pwd: str = dir
 
+    ##defines what happens when pwd command is executed
+    ##when pwd command is valid the correct response packet is created
+    ##when pwd command is invalid error is returned
     def handle_pwd(self, cmd_b: bytes, l):
+        cmd_s = cmd_b.decode(MTP.encoding)
         hashval = self.hash_command(cmd_b)
-        status = '\success' if True else 'failure'
-        resp = '\n'.join(['pwd', hashval, status, self.pwd])
+
+        params = cmd_s.split('\n')
+        if len(params) == 1:
+            status = 'success'
+            resp = '\n'.join(['pwd', hashval, status, self.pwd])
+        else:
+            status = 'failure'
+            resp = '\n'.join(['pwd', hashval, status, 'Too many arguments'])
+    
         mtp: MTPEntity = self.host.MTP
         mtp.send_message(MTP.COMMAND_RES, resp.encode(MTP.encoding))
 
