@@ -82,7 +82,7 @@ class CommandHandler:
 class ServerCommandHandler(CommandHandler):
     def __init__(self, host, dir) -> None:
         super().__init__(host)
-        self.rootdir = Path(os.path.abspath(dir))
+        self.rootdir = Path(dir)
         self.cwd = self.rootdir     # abs path of cwd
         os.chdir(self.rootdir)
 
@@ -205,8 +205,9 @@ class ServerCommandHandler(CommandHandler):
 
 
 class ClientCommandHandler(CommandHandler):
-    def __init__(self, host) -> None:
-        return super().__init__(host)
+    def __init__(self, host, dir) -> None:
+        super().__init__(host)
+        self.dir = Path(dir)
 
     def handle_pwd(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)

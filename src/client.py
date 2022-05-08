@@ -29,7 +29,7 @@ class Client(asyncio.Protocol, ITCP):
         self.guard = loop_.create_future()
         self.homedir = homedir
         self.dlr = Downloader()
-        self.cmd_handler = ClientCommandHandler(self)
+        self.cmd_handler = ClientCommandHandler(self, homedir)
 
     def get_RSA(self):
         return self.key
