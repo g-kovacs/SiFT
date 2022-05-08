@@ -1,5 +1,5 @@
-from mtp import MTPEntity, MTP
-from login import LoginRequest
+from SiFT.mtp import MTPEntity, MTP
+from SiFT.login import LoginRequest
 
 
 class Command:

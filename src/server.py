@@ -5,7 +5,7 @@ import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
-from SiFT.src.SiFT.command import CommandHandler
+from SiFT.command import CommandHandler
 from rsa_keygen import load_keypair
 from time import time_ns
 import sys
@@ -49,6 +49,7 @@ class Server(asyncio.Protocol, ITCP):
         if typ == MTP.LOGIN_REQ:
             self.handle_login_req(msg_info[1])
         if typ == MTP.COMMAND_REQ:
+            print("Command received")
             self.handler.handle(msg_info[1])
 
     def handle_login_req(self, req: login.LoginRequest):
@@ -66,7 +67,7 @@ async def main(dir):
     loop = asyncio.get_running_loop()
 
     server = await loop.create_server(
-        lambda: Server(),
+        lambda: Server(dir),
         HOST, PORT)
 
     async with server:

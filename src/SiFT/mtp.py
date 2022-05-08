@@ -165,10 +165,12 @@ class ServerMTP(MTPEntity):
         super().__init__(server)
 
     def dissect(self, msg: bytes):
-        typ, header, payload = super().dissect(msg)
+        typ, _, payload = super().dissect(msg)
 
         if typ == MTP.LOGIN_REQ:
             return (typ, LoginRequest.from_bytes(payload))
+        elif typ == MTP.COMMAND_REQ:
+            return (typ, payload)
 
     def send_login_res(self, res: LoginResponse):
         hashfn = SHA256.new()
