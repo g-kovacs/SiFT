@@ -44,7 +44,8 @@ class Client(asyncio.Protocol, ITCP):
         msg_info = self.MTP.dissect(data)
         if msg_info is None:        # Some error
             self.loop.stop()
-        self.handle_message(msg_info)
+        if not self.handle_message(msg_info):
+            sys.exit(1)
         self.guard.set_result(True)
 
     def handle_message(self, msg_info: tuple):
@@ -52,10 +53,11 @@ class Client(asyncio.Protocol, ITCP):
         typ = msg_info[0]
         if typ == MTP.LOGIN_RES:
             print("Login successful!")
+            return True
         if typ == MTP.COMMAND_RES:
-            self.cmd_handler.handle(msg_info[1])
+            return self.cmd_handler.handle(msg_info[1])
         if typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
-            self.dlr.data_received(typ, msg_info[1])
+            return self.dlr.data_received(typ, msg_info[1])
 
     def send_TCP(self, data):
         self.transport.write(data)
