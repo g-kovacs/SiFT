@@ -60,6 +60,8 @@ class CommandHandler:
             return self.handle_chd(cmd_b, l)
         elif command == "mkd":
             return self.handle_mkd(cmd_b, l)
+        elif command == "del":
+            return self.handle_del(cmd_b, l)
 
     def handle_pwd(self, cmd_b: bytes, l):
         pass
@@ -70,7 +72,10 @@ class CommandHandler:
     def handle_lst(self, cmd_b: bytes, l):
         pass
 
-    def handle_mkd(seld, cmd_b: bytes, l):
+    def handle_mkd(self, cmd_b: bytes, l):
+        pass
+
+    def handle_del(self, cmd_b: bytes, l):
         pass
 
 
@@ -83,7 +88,7 @@ class ServerCommandHandler(CommandHandler):
 
     """defines what happens when pwd command is executed
         when pwd command is valid the correct response packet is created
-        when pwd command is invalid error is returned 
+        when pwd command is invalid error is returned
     """
 
     def handle_pwd(self, cmd_b: bytes, l):
@@ -143,27 +148,58 @@ class ServerCommandHandler(CommandHandler):
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
 
-        target = params[1].replace(
-            "/server/", "") if ("/server" in params[1]) else params[1]
-
-        valid = [str(p) for p in Path(os.path.realpath(
-            self.rootdir / target)).parents]
-
         if len(params) == 1:
             status = 'failure'
             resp = '\n'.join(['mkd', hashval, status, 'Not enough arguments.'])
         elif len(params) > 2:
             status = 'failure'
             resp = '\n'.join(['mkd', hashval, status, 'Too many arguments.'])
-        elif str(self.rootdir.parent) not in valid:
+        elif "/" in params[1]:
             status = 'failure'
             resp = '\n'.join(
-                ['mkd', hashval, status, 'Cannot leave root directory.'])
+                ['mkd', hashval, status, 'Can only create in current directory.'])
         else:
             status = 'success'
             resp = '\n'.join(
                 ['mkd', hashval, status])
-            os.mkdir(os.path.realpath(self.rootdir / target))
+            os.mkdir(os.path.realpath(self.cwd / params[1]))
+
+        return self.send(resp.encode(MTP.encoding))
+
+    def handle_del(self, cmd_b: bytes, l):
+        hashval = self.hash_command(cmd_b)
+        cmd_s = cmd_b.decode(MTP.encoding)
+        params = cmd_s.split('\n')
+
+        if len(params) == 1:
+            status = 'failure'
+            resp = '\n'.join(['del', hashval, status, 'Not enough arguments.'])
+        elif len(params) > 2:
+            status = 'failure'
+            resp = '\n'.join(['del', hashval, status, 'Too many arguments.'])
+        elif "/" in params[1]:
+            status = 'failure'
+            resp = '\n'.join(
+                ['mkd', hashval, status, 'No such file or directory in current directory.'])
+        else:
+            if Path(os.path.realpath(self.cwd / params[1])).is_dir():
+                try:
+                    os.rmdir(os.path.realpath(self.cwd / params[1]))
+                except Exception as e:
+                    status = "failure"
+                    resp = '\n'.join(['del', hashval, status, e.args[1]])
+                else:
+                    status = "success"
+                    resp = '\n'.join(['del', hashval, status])
+            else:
+                try:
+                    os.remove(os.path.realpath(self.cwd / params[1]))
+                except Exception as e:
+                    status = "failure"
+                    resp = '\n'.join(['del', hashval, status, str(e.args)])
+                else:
+                    status = "success"
+                    resp = '\n'.join(['del', hashval, status])
 
         return self.send(resp.encode(MTP.encoding))
 
@@ -193,19 +229,19 @@ class ClientCommandHandler(CommandHandler):
         return True
 
     def handle_chd(self, cmd_b: bytes, l):
+        return self._handle_chd_mkd_del(cmd_b, l)
+
+    def handle_mkd(self, cmd_b: bytes, l):
+        return self._handle_chd_mkd_del(cmd_b, l)
+
+    def handle_del(self, cmd_b: bytes, l):
+        return self._handle_chd_mkd_del(cmd_b, l)
+
+    def _handle_chd_mkd_del(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
         if l[1] != self.last_cmd_hash:
             return False
         if l[2] == 'failure':
-            print(l[3])
-        return True
-
-    def handle_mkd(self, cmd_b: bytes, l):
-        command_str = cmd_b.decode(MTP.encoding)
-        l = command_str.split('\n')
-        if l[1] != self.last_cmd_hash:
-            return False
-        if l[2] != 'success':
             print(l[3])
         return True
