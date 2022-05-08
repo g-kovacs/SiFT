@@ -1,4 +1,7 @@
 from ast import Raise
+import os
+
+from click import command
 from SiFT.mtp import ITCP, MTPEntity, MTP
 from SiFT.login import LoginRequest
 from Crypto.Hash import SHA256
@@ -57,6 +60,8 @@ class CommandHandler:
             return self.handle_pwd(cmd_b, l)
         elif command == 'lst':
             return self.handle_lst(cmd_b, l)
+        elif command == "chd":
+            return self.handle_chd(cmd_b, l)
 
     def handle_pwd(self, cmd_b: bytes, l):
         pass
@@ -72,6 +77,8 @@ class ServerCommandHandler(CommandHandler):
         super().__init__(host)
         self.rootdir: str = dir
         self.cwd: str = dir
+        os.chdir(self.cwd)  ##Kell mivel os.getcwd() a command.py lokációját adja meg current directorynak
+                            ##Itt beállítjuk hogy a server directoryja legyen a current directory   
 
     """defines what happens when pwd command is executed
         when pwd command is valid the correct response packet is created
@@ -81,6 +88,7 @@ class ServerCommandHandler(CommandHandler):
         cmd_s = cmd_b.decode(MTP.encoding)
         hashval = self.hash_command(cmd_b)
         params = cmd_s.split('\n')
+
         if len(params) == 1:
             status = 'success'
             resp = '\n'.join(['pwd', hashval, status, self.cwd])
@@ -100,10 +108,28 @@ class ServerCommandHandler(CommandHandler):
     """defines what happens when chd command is executed
         when the command is valid, the correct response packet is created"""
     def handle_chd(self, cmd_b: bytes, l):
-        hashval = self.hash_command(cmd_b)
-        cmd_s = cmd_b.decode(MTP.decoding)
         
-
+        hashval = self.hash_command(cmd_b)
+        cmd_s = cmd_b.decode(MTP.encoding)
+        params = cmd_s.split('\n')
+       
+        try:
+            os.chdir(params[1])
+        except:
+            status = "failure" 
+            resp= '\n'.join(['chd',hashval, status, 'Not a valid directory'])   
+        else:
+            ##ez nem működik
+            #if os.getcwd() == "../data/server..":
+                self.cwd = os.getcwd()
+                status='success'
+                resp= '\n'.join(['chd',hashval, status])
+            #else:
+                #status = 'failure'
+                #resp= '\n'.join(['chd',hashval, status, 'Cannot access this directory'])
+        
+        
+        return self.send(resp.encode(MTP.encoding))
 
 class ClientCommandHandler(CommandHandler):
     def __init__(self, host) -> None:
@@ -129,4 +155,15 @@ class ClientCommandHandler(CommandHandler):
         ls = base64d(l[3]).split('\t')
         for p in ls:
             print(p)
+        return True
+
+    def handle_chd(self, cmd_b: bytes, l):
+        command_str = cmd_b.decode(MTP.encoding)
+        l = command_str.split('\n')
+        if l[1] != self.last_cmd_hash:
+            return False
+        if l[2] != 'success':
+            pass
+        if l[2] == 'failure': 
+            print(l[3])
         return True
