@@ -58,6 +58,8 @@ class CommandHandler:
             return self.handle_lst(cmd_b, l)
         elif command == "chd":
             return self.handle_chd(cmd_b, l)
+        elif command == "mkd":
+            return self.handle_mkd(cmd_b, l)
 
     def handle_pwd(self, cmd_b: bytes, l):
         pass
@@ -66,6 +68,9 @@ class CommandHandler:
         pass
 
     def handle_lst(self, cmd_b: bytes, l):
+        pass
+
+    def handle_mkd(seld, cmd_b: bytes, l):
         pass
 
 
@@ -99,6 +104,8 @@ class ServerCommandHandler(CommandHandler):
         return self.send(resp.encode(MTP.encoding))
 
     def handle_lst(self, cmd_b: bytes, l):
+        cmd_s = cmd_b.decode(MTP.encoding)
+        params = cmd_s.split('\n')
         hashval = self.hash_command(cmd_b)
         status = 'success'
         ls = '\t'.join(os.listdir(str(self.cwd)))
@@ -107,7 +114,8 @@ class ServerCommandHandler(CommandHandler):
         return self.send(resp.encode(MTP.encoding))
 
     """defines what happens when chd command is executed
-        when the command is valid, the correct response packet is created"""
+        when the command is valid, the correct response packet is created
+        when the command is invalid the correct error packet is created"""
 
     def handle_chd(self, cmd_b: bytes, l):
 
@@ -131,6 +139,22 @@ class ServerCommandHandler(CommandHandler):
             print(self.cwd)
             status = 'success'
             resp = '\n'.join(['chd', hashval, status])
+
+        return self.send(resp.encode(MTP.encoding))
+
+    def handle_mkd(self, cmd_b: bytes, l):
+        hashval = self.hash_command(cmd_b)
+        cmd_s = cmd_b.decode(MTP.encoding)
+        params = cmd_s.split('\n')
+
+        if len(params) == 1:
+            status = 'failure'
+            resp = '\n'.join(['mkd', hashval, status, 'Not enough arguments'])
+        elif len(params > 2):
+            status = 'failure'
+            resp = '\n'.join(['mkd', hashval, status, 'Too many arguments'])
+        else:
+            os.mkdir(params[1])
 
         return self.send(resp.encode(MTP.encoding))
 
@@ -170,4 +194,14 @@ class ClientCommandHandler(CommandHandler):
             pass
         if l[2] == 'failure':
             print(l[3])
+        return True
+
+    def handle_mkd(self, cmd_b: bytes, l):
+        command_str = cmd_b.decode(MTP.encoding)
+        l = command_str.split('\n')
+        if l[1] != self.last_cmd_hash:
+            return False
+        if l[2] != 'success':
+            pass
+        print(l[3])
         return True
