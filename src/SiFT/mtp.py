@@ -129,30 +129,35 @@ class ClientMTP(MTPEntity):
 
     def dissect(self, msg: bytes):
         typ, header, payload = super().dissect(msg)
+        data = payload.decode(MTP.encoding).split('\n')
         if typ == MTP.LOGIN_RES:
-            rh = payload[0:-16]
+            rh = data[0]
             if rh != self.login_hash:
                 return None
-            srand = payload[-16:]
-            self.key = HKDF(self.rnd + srand, 32, rh, SHA256, 1)
+            srand = bytes.fromhex(data[1])
+            self.key = HKDF(self.rnd + srand, 32,
+                            rh.encode(MTP.encoding), SHA256, 1)
             del self.rnd
             return (typ,)
+        else:
+            return (typ, payload)
 
     def send_login_req(self, req: LoginRequest, rsakey):
         data = req.get_request()
         self.key = Random.get_random_bytes(32)      # tk
         typ = MTP.LOGIN_REQ
         msg_len = MTP.header_len + len(data) + MTP.mac_len + MTP.encr_keylen
-        pdu = self.create_pdu(typ, msg_len, data, self.key)
+        pdu = self.create_pdu(
+            typ, msg_len, data.encode(MTP.encoding), self.key)
 
         RSAcipher = PKCS1_OAEP.new(rsakey)
         encr_tk = RSAcipher.encrypt(self.key)
 
         # store request hash
         hashfn = SHA256.new()
-        hashfn.update(data)
-        self.login_hash = hashfn.digest()
-        self.rnd = req.rnd
+        hashfn.update(data.encode(MTP.encoding))
+        self.login_hash = hashfn.hexdigest()
+        self.rnd = bytes.fromhex(req.rnd)
 
         self.send(pdu + encr_tk)
 
@@ -174,12 +179,14 @@ class ServerMTP(MTPEntity):
 
     def send_login_res(self, res: LoginResponse):
         hashfn = SHA256.new()
-        hashfn.update(res.req.get_request())
-        request_hash = hashfn.digest()
+        hashfn.update(res.req.get_request().encode(MTP.encoding))
+        request_hash = hashfn.hexdigest()
         # send login_res
-        self.send_message(MTP.LOGIN_RES, request_hash + res.rnd)
+        self.send_message(
+            MTP.LOGIN_RES, '\n'.join([request_hash, res.rnd]).encode(MTP.encoding))
         # update key
-        self.key = HKDF(res.req.rnd + res.rnd, 32, request_hash, SHA256, 1)
+        self.key = HKDF(bytes.fromhex(res.req.rnd + res.rnd), 32,
+                        request_hash.encode(MTP.encoding), SHA256, 1)
 
     def send_command_res(self):
         pass
