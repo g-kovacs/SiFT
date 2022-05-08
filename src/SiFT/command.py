@@ -132,11 +132,7 @@ class ServerCommandHandler(CommandHandler):
             status = "failure"
             resp = '\n'.join(['chd', hashval, status, e.args[0]])
         else:
-            if params[1] == "..":
-                self.cwd = self.cwd.parent
-            elif params[1] != ".":
-                self.cwd = self.cwd / params[1]
-            print(self.cwd)
+            self.cwd = Path(os.getcwd())
             status = 'success'
             resp = '\n'.join(['chd', hashval, status])
 
@@ -147,14 +143,27 @@ class ServerCommandHandler(CommandHandler):
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
 
+        target = params[1].replace(
+            "/server/", "") if ("/server" in params[1]) else params[1]
+
+        valid = [str(p) for p in Path(os.path.realpath(
+            self.rootdir / target)).parents]
+
         if len(params) == 1:
             status = 'failure'
-            resp = '\n'.join(['mkd', hashval, status, 'Not enough arguments'])
-        elif len(params > 2):
+            resp = '\n'.join(['mkd', hashval, status, 'Not enough arguments.'])
+        elif len(params) > 2:
             status = 'failure'
-            resp = '\n'.join(['mkd', hashval, status, 'Too many arguments'])
+            resp = '\n'.join(['mkd', hashval, status, 'Too many arguments.'])
+        elif str(self.rootdir.parent) not in valid:
+            status = 'failure'
+            resp = '\n'.join(
+                ['mkd', hashval, status, 'Cannot leave root directory.'])
         else:
-            os.mkdir(params[1])
+            status = 'success'
+            resp = '\n'.join(
+                ['mkd', hashval, status])
+            os.mkdir(os.path.realpath(self.rootdir / target))
 
         return self.send(resp.encode(MTP.encoding))
 
@@ -168,8 +177,6 @@ class ClientCommandHandler(CommandHandler):
         l = command_str.split('\n')
         if l[1] != self.last_cmd_hash:
             return False
-        if l[2] != 'success':
-            pass
         print(l[3])
         return True
 
@@ -190,8 +197,6 @@ class ClientCommandHandler(CommandHandler):
         l = command_str.split('\n')
         if l[1] != self.last_cmd_hash:
             return False
-        if l[2] != 'success':
-            pass
         if l[2] == 'failure':
             print(l[3])
         return True
@@ -202,6 +207,5 @@ class ClientCommandHandler(CommandHandler):
         if l[1] != self.last_cmd_hash:
             return False
         if l[2] != 'success':
-            pass
-        print(l[3])
+            print(l[3])
         return True
