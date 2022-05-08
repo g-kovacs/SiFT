@@ -44,6 +44,9 @@ class CommandHandler:
     def handle_pwd(self, cmd_b: bytes, l):
         pass
 
+    def handle_chd(self, cmd_b: bytes, l):
+        pass
+
 
 class ServerCommandHandler(CommandHandler):
     def __init__(self, host, dir) -> None:
@@ -51,9 +54,10 @@ class ServerCommandHandler(CommandHandler):
         self.rootdir: str = dir
         self.pwd: str = dir
 
-    ##defines what happens when pwd command is executed
-    ##when pwd command is valid the correct response packet is created
-    ##when pwd command is invalid error is returned
+    """defines what happens when pwd command is executed
+        when pwd command is valid the correct response packet is created
+        when pwd command is invalid error is returned 
+    """
     def handle_pwd(self, cmd_b: bytes, l):
         cmd_s = cmd_b.decode(MTP.encoding)
         hashval = self.hash_command(cmd_b)
@@ -68,6 +72,13 @@ class ServerCommandHandler(CommandHandler):
     
         mtp: MTPEntity = self.host.MTP
         mtp.send_message(MTP.COMMAND_RES, resp.encode(MTP.encoding))
+
+    """defines what happens when chd command is executed
+        when the command is valid, the correct response packet is created"""
+    def handle_chd(self, cmd_b: bytes, l):
+        hashval = self.hash_command(cmd_b)
+        cmd_s = cmd_b.decode(MTP.decoding)
+        
 
 
 class ClientCommandHandler(CommandHandler):
