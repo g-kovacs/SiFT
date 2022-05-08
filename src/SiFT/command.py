@@ -1,10 +1,11 @@
-from SiFT.mtp import MTPEntity, MTP
+from SiFT.mtp import ITCP, MTPEntity, MTP
 from SiFT.login import LoginRequest
 
 
 class Command:
-    def __init__(self, cmd: str, ) -> None:
+    def __init__(self, cmd: str, host) -> None:
         self.cmd = cmd
+        self.host = host
 
     def execute(self):
         pass

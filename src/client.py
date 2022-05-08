@@ -5,6 +5,7 @@ import getpass
 from SiFT.login import LoginRequest
 from SiFT.mtp import ITCP, ClientMTP, MTP
 from SiFT.command import Command
+from SiFT.download import Downloader
 from Crypto import Random
 from rsa_keygen import load_publickey
 from aioconsole import ainput
@@ -19,7 +20,7 @@ PORT = 5150
 keyfile = None
 
 
-class SimpleEchoClient(asyncio.Protocol, ITCP):
+class Client(asyncio.Protocol, ITCP):
 
     def __init__(self, loop: asyncio.AbstractEventLoop, homedir) -> None:
         self.loop = loop
@@ -27,6 +28,7 @@ class SimpleEchoClient(asyncio.Protocol, ITCP):
         self.key = load_publickey(keyfile)
         self.guard = loop_.create_future()
         self.homedir = homedir
+        self.dlr = Downloader()
 
     def get_RSA(self):
         return self.key
@@ -48,6 +50,8 @@ class SimpleEchoClient(asyncio.Protocol, ITCP):
         typ = msg_info[0]
         if typ == MTP.LOGIN_RES:
             print("Login successful!")
+        if typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
+            self.dlr.data_received(typ, msg_info[1])
 
     def send_TCP(self, data):
         self.transport.write(data)
@@ -55,7 +59,7 @@ class SimpleEchoClient(asyncio.Protocol, ITCP):
     async def handle_command(self, cmd):
         print(cmd)
         # self.guard = self.loop.create_future()
-        Command(cmd, self.MTP).execute()
+        Command(cmd, self).execute()
         # await self.guard
 
     def connection_lost(self, exc):
@@ -71,7 +75,7 @@ class SimpleEchoClient(asyncio.Protocol, ITCP):
         self.MTP.send_login_req(login_req, self.key)
 
 
-async def main(client: SimpleEchoClient):
+async def main(client: Client):
     await client.guard
     while True:
         cmd = await ainput('> ')
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     else:
         keyfile = args[0]
 
-    client = SimpleEchoClient(loop_, dir)
+    client = Client(loop_, dir)
     coro = loop_.create_connection(lambda: client, HOST, PORT)
     try:
         loop_.run_until_complete(coro)

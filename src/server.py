@@ -6,6 +6,8 @@ from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
 from SiFT.command import CommandHandler
+from SiFT.download import DownloadHandler
+from SiFT.upload import UploadHandler
 from rsa_keygen import load_keypair
 from time import time_ns
 import sys
@@ -22,9 +24,11 @@ class Server(asyncio.Protocol, ITCP):
     def __init__(self, dir) -> None:
         super().__init__()
         self.MTP = ServerMTP(self)
-        self.handler = CommandHandler(dir)
         self.logins = login.Logins('eznemegyerossalt')
         self.key = load_keypair(keyfile)
+        self.cmd_handler = CommandHandler(dir)
+        self.dl_handler = DownloadHandler()
+        self.ul_handler = UploadHandler()
 
     def get_RSA(self):
         return self.key
@@ -50,7 +54,9 @@ class Server(asyncio.Protocol, ITCP):
             self.handle_login_req(msg_info[1])
         if typ == MTP.COMMAND_REQ:
             print("Command received")
-            self.handler.handle(msg_info[1])
+            self.cmd_handler.handle(msg_info[1])
+        if typ == MTP.DNLOAD_REQ:
+            self.dl_handler.handle_download()
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 2):
