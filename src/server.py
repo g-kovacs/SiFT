@@ -5,7 +5,7 @@ import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
-from SiFT.command import CommandHandler
+from SiFT.command import ServerCommandHandler
 from SiFT.download import DownloadHandler
 from SiFT.upload import UploadHandler
 from rsa_keygen import load_keypair
@@ -26,7 +26,7 @@ class Server(asyncio.Protocol, ITCP):
         self.MTP = ServerMTP(self)
         self.logins = login.Logins('eznemegyerossalt')
         self.key = load_keypair(keyfile)
-        self.cmd_handler = CommandHandler(dir)
+        self.cmd_handler = ServerCommandHandler(self, dir)
         self.dl_handler = DownloadHandler()
         self.ul_handler = UploadHandler()
 
@@ -52,10 +52,9 @@ class Server(asyncio.Protocol, ITCP):
         typ = msg_info[0]
         if typ == MTP.LOGIN_REQ:
             self.handle_login_req(msg_info[1])
-        if typ == MTP.COMMAND_REQ:
-            print("Command received")
+        elif typ == MTP.COMMAND_REQ:
             self.cmd_handler.handle(msg_info[1])
-        if typ == MTP.DNLOAD_REQ:
+        elif typ == MTP.DNLOAD_REQ:
             self.dl_handler.handle_download()
 
     def handle_login_req(self, req: login.LoginRequest):
@@ -64,7 +63,7 @@ class Server(asyncio.Protocol, ITCP):
         if not self.logins.check_login(req.uname, req.pw):
             self.transport.close()
         self.MTP.send_login_res(login.LoginResponse(
-            req, Random.get_random_bytes(16)))
+            req, Random.get_random_bytes(16).hex()))
 
 
 async def main(dir):
