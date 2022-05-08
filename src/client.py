@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import os.path as path
 import asyncio
 import getpass
 import SiFT.login
@@ -20,11 +20,12 @@ keyfile = None
 
 class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
 
-    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, loop: asyncio.AbstractEventLoop, homedir) -> None:
         self.loop = loop
         self.MTP = mtp.ClientMTP(self)
         self.key = load_publickey(keyfile)
-        self.guard = None
+        self.guard = loop_.create_future()
+        self.homedir = homedir
 
     def get_RSA(self):
         return self.key
@@ -46,15 +47,15 @@ class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
     def handle_message(self, msg_info: tuple):
         typ = msg_info[0]
         if typ == mtp.MTP.LOGIN_RES:
-            print("lololo")
+            print("Login successful!")
 
     def send_TCP(self, data):
         self.transport.write(data)
 
     async def handle_command(self, cmd):
-        self.guard = self.loop.create_future()
         print(cmd)
-        await self.guard
+        # self.guard = self.loop.create_future()
+        # await self.guard
 
     def connection_lost(self, exc):
         self.loop.stop()
@@ -70,13 +71,15 @@ class SimpleEchoClient(asyncio.Protocol, mtp.ITCP):
 
 
 async def main(client: SimpleEchoClient):
+    await client.guard
     while True:
-        cmd = await ainput('Command >')
+        cmd = await ainput('> ')
         await client.handle_command(cmd)
 
 if __name__ == "__main__":
+    dir = path.abspath("../data/client")
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help'])
+        opts, args = getopt.getopt(sys.argv[1:], 'hd:', ['help', 'homedir='])
     except getopt.GetoptError:
         print('Error: Unknown option detected.')
         print('Type "client.py -h" for help.')
@@ -85,9 +88,12 @@ if __name__ == "__main__":
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             print('Usage:')
-            print('  client.py <keyfile>')
+            print('  client.py <keyfile> <homedir>')
             print('  <keyfile> must contain the 2048 public RSA key of the server.')
+            print('  <homedir> is the home directory of the client')
             sys.exit(0)
+        elif opt in ('-d', '--homedir'):
+            dir = path.abspath(arg)
 
     if len(args) < 1:
         print('Error: Key file name is missing.')
@@ -96,7 +102,7 @@ if __name__ == "__main__":
     else:
         keyfile = args[0]
 
-    client = SimpleEchoClient(loop_)
+    client = SimpleEchoClient(loop_, dir)
     coro = loop_.create_connection(lambda: client, HOST, PORT)
     try:
         loop_.run_until_complete(coro)
