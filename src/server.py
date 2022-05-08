@@ -18,10 +18,10 @@ keyfile = None
 class Server(asyncio.Protocol, ITCP):
     _sessions = {}
 
-    def __init__(self) -> None:
+    def __init__(self, dir) -> None:
         super().__init__()
         self.MTP = ServerMTP(self)
-        self.homedir = path.abspath("../data")
+        self.rootdir = dir
         self.logins = login.Logins('eznemegyerossalt')
         self.key = load_keypair(keyfile)
 
@@ -57,7 +57,7 @@ class Server(asyncio.Protocol, ITCP):
             req, Random.get_random_bytes(16)))
 
 
-async def main():
+async def main(dir):
     # Get a reference to the event loop as we plan to use
     # low-level APIs.
     loop = asyncio.get_running_loop()
@@ -70,8 +70,9 @@ async def main():
         await server.serve_forever()
 
 if __name__ == "__main__":
+    dir = path.abspath("../data/server")
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help'])
+        opts, args = getopt.getopt(sys.argv[1:], 'hd:', ['help', 'rootdir='])
     except getopt.GetoptError:
         print('Error: Unknown option detected.')
         print('Type "server.py -h" for help.')
@@ -80,9 +81,13 @@ if __name__ == "__main__":
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             print('Usage:')
-            print('  server.py <keyfile>')
+            print('  server.py <keyfile> [-d <rootdir>]')
+            print('  server.py <keyfile> [--rootdir <rootdir>]')
             print('  <keyfile> must contain the 2048 bit RSA key of the server.')
+            print('  <rootdir> is the root directory of the server')
             sys.exit(0)
+        elif opt in ('-d', '--rootdir'):
+            dir = path.abspath(arg)
 
     if len(args) < 1:
         print('Error: Key file name is missing.')
@@ -90,4 +95,4 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         keyfile = args[0]
-    asyncio.run(main())
+    asyncio.run(main(dir))

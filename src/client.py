@@ -88,7 +88,8 @@ if __name__ == "__main__":
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             print('Usage:')
-            print('  client.py <keyfile> <homedir>')
+            print('  client.py <keyfile> [-d <homedir>]')
+            print('  client.py <keyfile> [--homedir <homedir>]')
             print('  <keyfile> must contain the 2048 public RSA key of the server.')
             print('  <homedir> is the home directory of the client')
             sys.exit(0)
