@@ -10,6 +10,7 @@ from rsa_keygen import load_publickey
 from aioconsole import ainput
 import sys
 import getopt
+from time import time_ns
 
 loop_ = asyncio.get_event_loop()
 
@@ -55,7 +56,8 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
         uname = input("Enter username: ")
         pw = getpass.getpass("enter password: ")
         rnd = Random.get_random_bytes(16)
-        login_req = SiFT.login.LoginRequest(uname, pw, rnd).get_request()
+        login_req = SiFT.login.LoginRequest(
+            uname, pw, rnd, time_ns()).get_request()
         self.MTP.send_login_req(login_req, self.key)
         hashfn = SHA256.new()
         hashfn.update(login_req)
@@ -91,5 +93,10 @@ if __name__ == "__main__":
 
     client = SimpleEchoClient(loop_)
     coro = loop_.create_connection(lambda: client, HOST, PORT)
-    loop_.run_until_complete(coro)
-    loop_.run_until_complete(main(client))
+    try:
+        loop_.run_until_complete(coro)
+        loop_.run_until_complete(main(client))
+        sys.exit(0)
+    except Exception as e:
+        print("Bye.")
+        sys.exit(1)

@@ -24,7 +24,7 @@ class Logins:
 
 
 class LoginRequest():
-    def __init__(self, uname: str, pw: str, rnd: bytes, ts=time.time_ns()) -> None:
+    def __init__(self, uname: str, pw: str, rnd: bytes, ts: int) -> None:
         self.uname = uname
         self.pw = pw
         self.rnd = rnd
@@ -45,8 +45,8 @@ class LoginRequest():
         return LoginRequest(tmp[1], tmp[2], rnd, int(tmp[0]))
 
     def valid_timestamp(self, ts: int, delta_s: int):
-        delta_ns = delta_s * 1e-9
-        return ts - delta_ns/2 <= self.ts and self.ts <= ts + delta_ns/2
+        delta_ns = delta_s * int(5e8)
+        return ts - delta_ns <= self.ts and self.ts <= ts + delta_ns
 
 
 class LoginResponse():

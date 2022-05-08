@@ -49,6 +49,7 @@ class Server(asyncio.Protocol, ITCP):
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 2):
+            print("timestamp error")
             self.transport.close()
 
 
