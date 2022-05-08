@@ -4,7 +4,7 @@ import asyncio
 import getpass
 from SiFT.login import LoginRequest
 from SiFT.mtp import ITCP, ClientMTP, MTP
-from SiFT.command import Command
+from SiFT.command import ClientCommandHandler, Command
 from SiFT.download import Downloader
 from Crypto import Random
 from rsa_keygen import load_publickey
@@ -29,6 +29,7 @@ class Client(asyncio.Protocol, ITCP):
         self.guard = loop_.create_future()
         self.homedir = homedir
         self.dlr = Downloader()
+        self.cmd_handler = ClientCommandHandler(self)
 
     def get_RSA(self):
         return self.key
@@ -47,9 +48,12 @@ class Client(asyncio.Protocol, ITCP):
         self.guard.set_result(True)
 
     def handle_message(self, msg_info: tuple):
+        # msginfo: tuple (typ, payload [bytes])
         typ = msg_info[0]
         if typ == MTP.LOGIN_RES:
             print("Login successful!")
+        if typ == MTP.COMMAND_RES:
+            self.cmd_handler.handle(msg_info[1])
         if typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
             self.dlr.data_received(typ, msg_info[1])
 
@@ -57,10 +61,9 @@ class Client(asyncio.Protocol, ITCP):
         self.transport.write(data)
 
     async def handle_command(self, cmd):
-        print(cmd)
-        # self.guard = self.loop.create_future()
+        self.guard = self.loop.create_future()
         Command(cmd, self).execute()
-        # await self.guard
+        await self.guard
 
     def connection_lost(self, exc):
         self.loop.stop()
@@ -69,7 +72,7 @@ class Client(asyncio.Protocol, ITCP):
         # login_req with uname, passwd, random and a timestamp
         uname = input("Enter username: ")
         pw = getpass.getpass("enter password: ")
-        rnd = Random.get_random_bytes(16)
+        rnd = Random.get_random_bytes(16).hex()
         login_req = LoginRequest(
             uname, pw, rnd, time_ns())
         self.MTP.send_login_req(login_req, self.key)
