@@ -57,6 +57,7 @@ class CommandHandler:
         # if command not in []:
         #       return
         if command == 'pwd':
+            print("FASZ")
             return self.handle_pwd(cmd_b, l)
         elif command == 'lst':
             return self.handle_lst(cmd_b, l)
@@ -106,13 +107,15 @@ class ServerCommandHandler(CommandHandler):
         return self.send(resp.encode(MTP.encoding))
 
     """defines what happens when chd command is executed
-        when the command is valid, the correct response packet is created"""
+        when the command is valid, the correct response packet is created
+        when the command is invalod the correct error is returned 
+    """
     def handle_chd(self, cmd_b: bytes, l):
         
         hashval = self.hash_command(cmd_b)
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
-       
+        
         try:
             os.chdir(params[1])
         except:
@@ -121,9 +124,10 @@ class ServerCommandHandler(CommandHandler):
         else:
             ##ez nem működik
             #if os.getcwd() == "../data/server..":
-                self.cwd = os.getcwd()
-                status='success'
-                resp= '\n'.join(['chd',hashval, status])
+            print(os.getcwd())
+            self.cwd = os.getcwd()
+            status='success'
+            resp= '\n'.join(['chd',hashval, status])
             #else:
                 #status = 'failure'
                 #resp= '\n'.join(['chd',hashval, status, 'Cannot access this directory'])
