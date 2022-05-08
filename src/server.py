@@ -4,11 +4,14 @@ import asyncio
 import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 import SiFT.login as login
-from keygen import load_keypair
+from rsa_keygen import load_keypair
 from time import time_ns
+import sys
+import getopt
 
 HOST = 'localhost'
 PORT = 5150
+keyfile = None
 
 
 class Server(asyncio.Protocol, ITCP):
@@ -19,7 +22,7 @@ class Server(asyncio.Protocol, ITCP):
         self.MTP = ServerMTP(self)
         self.homedir = path.abspath("../data")
         self.logins = login.Logins('eznemegyerossalt')
-        self.key = load_keypair("privkey")
+        self.key = load_keypair(keyfile)
 
     def get_key(self):
         return self.key
@@ -62,4 +65,24 @@ async def main():
         await server.serve_forever()
 
 if __name__ == "__main__":
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help'])
+    except getopt.GetoptError:
+        print('Error: Unknown option detected.')
+        print('Type "server.py -h" for help.')
+        sys.exit(1)
+
+    for opt, arg in opts:
+        if opt in ('-h', '--help'):
+            print('Usage:')
+            print('  server.py <keyfile>')
+            print('  <keyfile> must contain the 2048 bit RSA key of the server.')
+            sys.exit(0)
+
+    if len(args) < 1:
+        print('Error: Key file name is missing.')
+        print('Type "server.py -h" for help.')
+        sys.exit(1)
+    else:
+        keyfile = args[0]
     asyncio.run(main())

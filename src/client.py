@@ -6,13 +6,16 @@ import SiFT.login
 import SiFT.mtp
 from Crypto import Random
 from Crypto.Hash import SHA256
-from keygen import load_publickey
+from rsa_keygen import load_publickey
 from aioconsole import ainput
+import sys
+import getopt
 
 loop_ = asyncio.get_event_loop()
 
 HOST = 'localhost'
 PORT = 5150
+keyfile = None
 
 
 class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
@@ -20,7 +23,7 @@ class SimpleEchoClient(asyncio.Protocol, SiFT.mtp.ITCP):
     def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
         self.MTP = SiFT.mtp.ClientMTP(self)
-        self.key = load_publickey("server_pubkey")
+        self.key = load_publickey(keyfile)
 
     def get_key(self):
         return self.key
@@ -65,6 +68,27 @@ async def main(client: SimpleEchoClient):
         await client.handle_command(cmd)
 
 if __name__ == "__main__":
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'h', ['help'])
+    except getopt.GetoptError:
+        print('Error: Unknown option detected.')
+        print('Type "client.py -h" for help.')
+        sys.exit(1)
+
+    for opt, arg in opts:
+        if opt in ('-h', '--help'):
+            print('Usage:')
+            print('  client.py <keyfile>')
+            print('  <keyfile> must contain the 2048 public RSA key of the server.')
+            sys.exit(0)
+
+    if len(args) < 1:
+        print('Error: Key file name is missing.')
+        print('Type "client.py -h" for help.')
+        sys.exit(1)
+    else:
+        keyfile = args[0]
+
     client = SimpleEchoClient(loop_)
     coro = loop_.create_connection(lambda: client, HOST, PORT)
     loop_.run_until_complete(coro)
