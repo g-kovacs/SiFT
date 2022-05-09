@@ -62,6 +62,10 @@ class CommandHandler:
             return self.handle_mkd(cmd_b, l)
         elif command == "del":
             return self.handle_del(cmd_b, l)
+        elif command == "upl": 
+            return self.handle_upl(cmd_b, l)
+        elif command == "dnl":
+            return self.handle_dnl(cmd_b, l)
 
     def handle_pwd(self, cmd_b: bytes, l):
         pass
@@ -77,20 +81,24 @@ class CommandHandler:
 
     def handle_del(self, cmd_b: bytes, l):
         pass
+    
+    def handle_upl(self, cmd_b: bytes, l):
+        pass
 
+    def handle_dnl(self, cmd_b: bytes, l):
+        pass
 
 class ServerCommandHandler(CommandHandler):
     def __init__(self, host, dir) -> None:
         super().__init__(host)
         self.rootdir = Path(dir)
         self.cwd = self.rootdir     # abs path of cwd
-        os.chdir(self.rootdir)
+        #os.chdir(self.rootdir)
 
     """defines what happens when pwd command is executed
         when pwd command is valid the correct response packet is created
         when pwd command is invalid error is returned
     """
-
     def handle_pwd(self, cmd_b: bytes, l):
         cmd_s = cmd_b.decode(MTP.encoding)
         hashval = self.hash_command(cmd_b)
@@ -121,7 +129,6 @@ class ServerCommandHandler(CommandHandler):
     """defines what happens when chd command is executed
         when the command is valid, the correct response packet is created
         when the command is invalid the correct error packet is created"""
-
     def handle_chd(self, cmd_b: bytes, l):
 
         hashval = self.hash_command(cmd_b)
@@ -203,7 +210,53 @@ class ServerCommandHandler(CommandHandler):
 
         return self.send(resp.encode(MTP.encoding))
 
+    def handle_upl(self, cmd_b: bytes, l):
+        cmd_s = cmd_b.decode(MTP.encoding)
+        hashval = self.hash_command(cmd_b)
+        params = cmd_s.split('\n')
 
+        #feltétel fájl méretre vonatkozóan, mekkora a túl nagy fájl?
+        #if params[1] > ???
+            ## status='reject'
+            ## resp = '\n'.join(['upl', hashval, status, 'Hibaüzenet'])
+        #else
+        
+        status = "accept"
+        resp = '\n'.join(['upl', hashval, status])
+        return self.send(resp.encode(MTP.encoding))
+
+    """First it checks if the command is valid, then it queries the file size and computes the hash
+        based on the target file"""
+    ###egy reject után kilép a kliens    
+    def handle_dnl(self, cmd_b: bytes, l):
+        hashval = self.hash_command(cmd_b)
+        cmd_s = cmd_b.decode(MTP.encoding)
+        params = cmd_s.split('\n')
+
+        if len(params) == 1:
+            status = 'reject'
+            resp = '\n'.join(['dnl', hashval, status, 'Not enough arguments.'])
+        elif len(params) > 2:
+            status = 'reject'
+            resp = '\n'.join(['dnl', hashval, status, 'Too many arguments.'])
+        elif "/" in params[1]:
+            status = 'reject'
+            resp = '\n'.join(['dnl', hashval, status, 'Can only download from current directory.'])
+        else:
+            try:
+                file_size = str(os.path.getsize(Path(os.path.realpath(self.cwd / params[1]))))
+                print(file_size)
+                f = open(Path(os.path.realpath(self.cwd / params[1])), "rb")
+                status = 'accept'
+            except:
+                status = 'reject'
+                resp = '\n'.join(['dnl', hashval, status, 'File not exits'])
+            else:
+                file_content = f.read()
+                content_hash = self.hash_command(file_content)
+                resp = '\n'.join(['dnl', hashval, status, file_size, content_hash])
+
+        return self.send(resp.encode(MTP.encoding))
 class ClientCommandHandler(CommandHandler):
     def __init__(self, host, dir) -> None:
         super().__init__(host)
@@ -245,4 +298,46 @@ class ClientCommandHandler(CommandHandler):
             return False
         if l[2] == 'failure':
             print(l[3])
+        return True
+
+    """Itt végezzük el a pdu összerakást, NEM a szerver mappában vagyunk!!"""
+    def handle_upl(self, cmd_b: bytes, l):
+        hashval = self.hash_command(cmd_b)
+        cmd_s = cmd_b.decode(MTP.encoding)
+        params = cmd_s.split('\n')
+
+        if len(params) == 1:
+            status = 'reject'
+            resp = '\n'.join(['upl', hashval, status, 'Not enough arguments.'])
+        elif len(params) > 2:
+            status = 'reject'
+            resp = '\n'.join(['upl', hashval, status, 'Too many arguments.'])
+        elif "/" in params[1]:
+            status = 'reject'
+            resp = '\n'.join(['upl', hashval, status, 'Can only upload from current directory.'])
+        else:
+            try:
+                file_size = str(os.path.getsize(params[1]))
+                f = open(Path(os.path.realpath(self.cwd / params[1])), "rb")
+                status = 'accept'
+            except:
+                status = 'reject'
+                resp = '\n'.join(['upl', hashval, status, 'File not exits'])
+            else:
+                file_content = f.read()
+                content_hash = self.hash_command(file_content)
+                resp = '\n'.join(['upl', hashval, status, file_size, content_hash])
+
+        return self.send(resp.encode(MTP.encoding))
+
+    def handle_dnl(self, cmd_b: bytes, l):
+        command_str = cmd_b.decode(MTP.encoding)
+        l = command_str.split('\n')
+        if l[1] != self.last_cmd_hash:
+            return False
+        if l[2] == 'reject':
+            print(l[3])
+            return False
+        print(l[3])
+        print(l[4])
         return True
