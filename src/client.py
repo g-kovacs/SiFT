@@ -15,7 +15,7 @@ from time import time_ns
 
 loop_ = asyncio.get_event_loop()
 
-HOST = 'localhost'
+HOST = '10.71.0.43'
 PORT = 5150
 keyfile = None
 
@@ -80,6 +80,7 @@ class Client(asyncio.Protocol, ITCP):
         rnd = Random.get_random_bytes(16).hex()
         login_req = LoginRequest(
             uname, pw, rnd, time_ns())
+        print(login_req.rnd)
         self.MTP.send_login_req(login_req, self.key)
 
 

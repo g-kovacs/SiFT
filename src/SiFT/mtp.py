@@ -96,6 +96,7 @@ class MTPEntity():
         nonce = msg[6:14]               # sqn + rnd
         AE = AES.new(aes_key, AES.MODE_GCM, nonce=nonce, mac_len=MTP.mac_len)
         try:
+            AE.update(header)
             payload = AE.decrypt_and_verify(encr_payload, authtag)
         except Exception as e:
             print("Integrity check failed, droppping packet.")
@@ -114,6 +115,7 @@ class MTPEntity():
         header = MTP.create_header(typ, length, self.sqn, r)
         nonce = self.sqn.to_bytes(2, 'big') + r
         AE = AES.new(AES_key, AES.MODE_GCM, nonce=nonce, mac_len=MTP.mac_len)
+        AE.update(header)
         encr_data, authtag = AE.encrypt_and_digest(payload)
         return header + encr_data + authtag
 
@@ -136,7 +138,7 @@ class ClientMTP(MTPEntity):
                 return None
             srand = bytes.fromhex(data[1])
             self.key = HKDF(self.rnd + srand, 32,
-                            rh.encode(MTP.encoding), SHA256, 1)
+                            bytes.fromhex(rh), SHA256)
             del self.rnd
             return (typ,)
         else:
@@ -186,7 +188,7 @@ class ServerMTP(MTPEntity):
             MTP.LOGIN_RES, '\n'.join([request_hash, res.rnd]).encode(MTP.encoding))
         # update key
         self.key = HKDF(bytes.fromhex(res.req.rnd + res.rnd), 32,
-                        request_hash.encode(MTP.encoding), SHA256, 1)
+                        bytes.fromhex(request_hash), SHA256, 1)
 
     def send_command_res(self):
         pass

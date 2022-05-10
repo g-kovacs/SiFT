@@ -13,7 +13,7 @@ from time import time_ns
 import sys
 import getopt
 
-HOST = 'localhost'
+HOST = '10.71.0.183'
 PORT = 5150
 keyfile = None
 
