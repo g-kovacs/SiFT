@@ -58,7 +58,7 @@ class Server(asyncio.Protocol, ITCP):
             self.dl_handler.handle_download()
 
     def handle_login_req(self, req: login.LoginRequest):
-        if not req.valid_timestamp(time_ns(), 2):
+        if not req.valid_timestamp(time_ns(), 120):
             self.transport.close()
         if not self.logins.check_login(req.uname, req.pw):
             self.transport.close()
