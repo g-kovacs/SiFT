@@ -15,7 +15,7 @@ from time import time_ns
 
 loop_ = asyncio.get_event_loop()
 
-HOST = '10.71.0.43'
+HOST = 'localhost'
 PORT = 5150
 keyfile = None
 

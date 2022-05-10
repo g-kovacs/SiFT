@@ -63,7 +63,10 @@ class MTPEntity():
 
         if not MTP.verify(msg):
             return (None,)*3
-        header, payload = self.check_integrity(msg)
+        ret = self.check_integrity(msg)
+        if ret is None:
+            return (None,)*3
+        header, payload = ret[0], ret[1]
         if not payload:
             return (None,)*3
 

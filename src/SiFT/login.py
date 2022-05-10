@@ -10,7 +10,8 @@ class Logins:
         self.logins = self.gen_hashed_logins()
 
     def gen_hashed_logins(self):
-        plain = {"alice": "aaa", "bob": "bbb", "charlie": "ccc"}
+        plain = {"alice": "aaa", "bob": "bbb",
+                 "charlie": "ccc", "user": "user"}
         logins = {}
         for k in plain.keys():
             h = scrypt(plain[k], self.salt, 32, 8, 8, 1)

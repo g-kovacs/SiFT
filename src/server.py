@@ -2,6 +2,7 @@
 
 import asyncio
 import os.path as path
+from re import T
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
@@ -13,7 +14,7 @@ from time import time_ns
 import sys
 import getopt
 
-HOST = '10.71.0.183'
+HOST = 'localhost'
 PORT = 5150
 keyfile = None
 
@@ -29,6 +30,7 @@ class Server(asyncio.Protocol, ITCP):
         self.cmd_handler = ServerCommandHandler(self, dir)
         self.dl_handler = DownloadHandler()
         self.ul_handler = UploadHandler()
+        self.logged_in = False
 
     def get_RSA(self):
         return self.key
@@ -51,6 +53,9 @@ class Server(asyncio.Protocol, ITCP):
     def handle_message(self, msg_info: tuple):
         typ = msg_info[0]
         if typ == MTP.LOGIN_REQ:
+            if self.logged_in:
+                print("Got LOGIN_REQ, expecting COMMAND_REQ.")
+                self.transport.close()
             self.handle_login_req(msg_info[1])
         elif typ == MTP.COMMAND_REQ:
             self.cmd_handler.handle(msg_info[1])
@@ -59,9 +64,12 @@ class Server(asyncio.Protocol, ITCP):
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 120):
+            print("Timestamp not valid. DROP")
             self.transport.close()
         if not self.logins.check_login(req.uname, req.pw):
+            print("Login credentials not valid. DROP")
             self.transport.close()
+        self.logged_in = True
         self.MTP.send_login_res(login.LoginResponse(
             req, Random.get_random_bytes(16).hex()))
 
