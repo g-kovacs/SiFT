@@ -20,7 +20,28 @@ class Command:
 
     def execute(self):
         mtp: MTPEntity = self.host.MTP
-        data = self.cmd.strip().replace(' ', '\n')
+        cmd = self.cmd.strip().replace(' ', '\n')
+
+        ##bemente felbontésa
+        params = cmd.split('\n')
+        if(params[0] == 'upl'):
+            if len(params) == 1:
+                print('Not enough arguments.')
+            elif len(params) > 2:
+                print('Too many arguments.')
+            try:
+                ##fájlt kell megnyitni, ami a kliensen van, ez hasal el
+                file_size = str(os.path.getsize(Path(os.path.realpath(params[1]))))
+                f = open(Path(os.path.realpath(params[1])), "rb")
+
+            except: 
+                    print('File not exits')
+            else:
+                    file_content = f.read()
+                    content_hash = str(self.hash_command(file_content)) 
+                    data = cmd + '\n' + file_size + '\n' + content_hash ##beállítjuk a data részt.
+        else: data = cmd   
+
         mtp.send_message(MTP.COMMAND_REQ, data.encode(MTP.encoding))
         self.host.cmd_handler.last_sent(data.encode(MTP.encoding))
 
@@ -175,7 +196,7 @@ class ServerCommandHandler(CommandHandler):
             os.mkdir(os.path.realpath(self.cwd / params[1]))
 
         return self.send(resp.encode(MTP.encoding))
-
+        
     def handle_del(self, cmd_b: bytes, l):
         hashval = self.hash_command(cmd_b)
         cmd_s = cmd_b.decode(MTP.encoding)
@@ -187,10 +208,15 @@ class ServerCommandHandler(CommandHandler):
         elif len(params) > 2:
             status = 'failure'
             resp = '\n'.join(['del', hashval, status, 'Too many arguments.'])
+            status = 'failure'
+            resp = '\n'.join(['del', hashval, status, 'Not enough arguments.'])
+        elif len(params) > 2:
+            status = 'failure'
+            resp = '\n'.join(['del', hashval, status, 'Too many arguments.'])
         elif "/" in params[1]:
             status = 'failure'
             resp = '\n'.join(
-                ['mkd', hashval, status, 'No such file or directory in current directory.'])
+                ['del', hashval, status, 'No such file or directory in current directory.'])
         else:
             if Path(os.path.realpath(self.cwd / params[1])).is_dir():
                 try:
@@ -218,11 +244,16 @@ class ServerCommandHandler(CommandHandler):
         hashval = self.hash_command(cmd_b)
         params = cmd_s.split('\n')
 
-        # feltétel fájl méretre vonatkozóan, mekkora a túl nagy fájl?
-        # if params[1] > ???
-        # status='reject'
-        ## resp = '\n'.join(['upl', hashval, status, 'Hibaüzenet'])
-        # else
+        if len(params) == 1:
+            status = 'reject'
+            resp = '\n'.join(['dnl', hashval, status, 'Not enough arguments.'])
+        elif len(params) > 2:
+            status = 'reject'
+            resp = '\n'.join(['dnl', hashval, status, 'Too many arguments.'])
+        elif "/" in params[1]:
+            status = 'reject'
+            resp = '\n'.join(
+            ['dnl', hashval, status, 'Can only download from current directory.'])
 
         status = "accept"
         resp = '\n'.join(['upl', hashval, status])
