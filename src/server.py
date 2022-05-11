@@ -2,7 +2,6 @@
 
 import asyncio
 import os.path as path
-from re import T
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
