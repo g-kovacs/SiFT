@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 import os.path as path
+from pathlib import Path
 import asyncio
 import getpass
 from SiFT.login import LoginRequest
 from SiFT.mtp import ITCP, ClientMTP, MTP
 from SiFT.command import ClientCommandHandler, Command
-from SiFT.download import Downloader
 from Crypto import Random
 from rsa_keygen import load_publickey
-from aioconsole import ainput
+from aioconsole import ainput, aprint
 import sys
 import getopt
 from time import time_ns
@@ -28,8 +28,14 @@ class Client(asyncio.Protocol, ITCP):
         self.key = load_publickey(keyfile)
         self.guard = loop_.create_future()
         self.homedir = homedir
-        self.dlr = Downloader()
         self.cmd_handler = ClientCommandHandler(self, homedir)
+        self.dnl = False
+        self.dnl_req = False
+        self.dnl_cache = b''
+        self.dnl_target = None
+        self.drop = False
+        self.drop_cnt = 0
+        self.logged_in = False
 
     def get_RSA(self):
         return self.key
@@ -42,33 +48,72 @@ class Client(asyncio.Protocol, ITCP):
     def data_received(self, data):
         # print('Data received: {!r}'.format(data.decode()))
         msg_info = self.MTP.dissect(data)
+        print("data rcvd")
+        print(msg_info)
         if msg_info is None:        # Some error
             self.loop.stop()
-        if not self.handle_message(msg_info):
-            sys.exit(1)
-        self.guard.set_result(True)
+        self.handle_message(*msg_info)
 
-    def handle_message(self, msg_info: tuple):
-        # msginfo: tuple (typ, payload [bytes])
-        typ = msg_info[0]
+    def handle_message(self, typ, header: bytes, payload: bytes):
+        # msginfo: tuple (typ, header [bytes], payload [bytes])
         if typ == MTP.LOGIN_RES:
-            print("Login successful!")
-            return True
-        if typ == MTP.COMMAND_RES:
-            return self.cmd_handler.handle(msg_info[1])
-        if typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
-            return self.dlr.data_received(typ, msg_info[1])
+            if not self.logged_in:
+                print("Login successful!")
+                self.logged_in = True
+                self.guard.set_result(True)
+        elif typ == MTP.COMMAND_RES:
+            self.cmd_handler.handle(payload)
+            self.guard.set_result(True)
+        elif typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
+            if not self.drop:
+                if not self.dnl:
+                    print("dnl_res without permission.")
+                    self.transport.close()
+                    self.loop.stop()
+                else:
+                    if typ == MTP.DNLOAD_RES_1:
+                        data = self.dnl_cache + payload
+                        with open(self.homedir / self.dnl_target, "wb") as f:
+                            f.write(data)
+                        self.dnl = False
+                        self.dnl_req = False
+                        self.dnl_cache = b''
+                        self.dnl_target = None
+                        self.guard.set_result(True)
+                    else:
+                        self.dnl_cache += payload
+                        return
+            else:
+                self.dnl = False
+                self.dnl_target = False
+                self.dnl_req = False
+                self.drop_cnt += 1
+                if self.drop_cnt <= 1:
+                    self.guard.set_result(True)
 
     def send_TCP(self, data):
         self.transport.write(data)
 
-    async def handle_command(self, cmd):
-        c = cmd.split(' ')[0]
-        if c not in ['pwd', 'lst', 'chd', 'mkd', 'del', 'upl', 'dnl']:
-            return
-        self.guard = self.loop.create_future()
-        Command(cmd, self).execute()
-        await self.guard
+    async def handle_command(self, cmd: str):
+        if self.dnl_req:
+            ans = "Ready" if (cmd.lower() == "yes") else "Cancel"
+            if ans == "Ready":
+                self.dnl = True
+                self.drop_cnt = 0
+                self.drop = False
+                self.guard = self.loop.create_future()
+            self.MTP.send_message(MTP.DNLOAD_REQ, ans.encode(MTP.encoding))
+            if ans == "Cancel":
+                self.dnl_req = False
+            else:   # Ready
+                await self.guard
+        else:
+            c = cmd.split(' ')[0]
+            if c not in ['pwd', 'lst', 'chd', 'mkd', 'del', 'upl', 'dnl']:
+                return
+            self.guard = self.loop.create_future()
+            Command(cmd, self).execute()
+            await self.guard
 
     def connection_lost(self, exc):
         self.loop.stop()
@@ -87,7 +132,13 @@ class Client(asyncio.Protocol, ITCP):
 async def main(client: Client):
     await client.guard
     while True:
-        cmd = await ainput('> ')
+        if client.dnl_req:
+            cmd = await ainput()
+            while cmd.lower() not in ["yes", "no"]:
+                await aprint("Please type 'yes' or 'no'.")
+                cmd = await ainput()
+        else:
+            cmd = await ainput('> ')
         await client.handle_command(cmd)
 
 if __name__ == "__main__":
@@ -117,7 +168,7 @@ if __name__ == "__main__":
     else:
         keyfile = args[0]
 
-    client = Client(loop_, dir)
+    client = Client(loop_, Path(dir))
     coro = loop_.create_connection(lambda: client, HOST, PORT)
     try:
         loop_.run_until_complete(coro)

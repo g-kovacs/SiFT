@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import math
 import os.path as path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
@@ -27,9 +28,9 @@ class Server(asyncio.Protocol, ITCP):
         self.logins = login.Logins('eznemegyerossalt')
         self.key = load_keypair(keyfile)
         self.cmd_handler = ServerCommandHandler(self, dir)
-        self.dl_handler = DownloadHandler()
-        self.ul_handler = UploadHandler()
         self.logged_in = False
+        self.dnl = False
+        self.dnl_path = None
 
     def get_RSA(self):
         return self.key
@@ -47,19 +48,27 @@ class Server(asyncio.Protocol, ITCP):
         if msg_info is None:        # Some error
             self.transport.close()
             return
-        self.handle_message(msg_info)
+        self.handle_message(*msg_info)
 
-    def handle_message(self, msg_info: tuple):
-        typ = msg_info[0]
+    def handle_message(self, typ, header: bytes, payload: bytes):
         if typ == MTP.LOGIN_REQ:
             if self.logged_in:
                 print("Got LOGIN_REQ, expecting COMMAND_REQ.")
                 self.transport.close()
-            self.handle_login_req(msg_info[1])
+            self.handle_login_req(login.LoginRequest.from_bytes(payload))
         elif typ == MTP.COMMAND_REQ:
-            self.cmd_handler.handle(msg_info[1])
+            self.cmd_handler.handle(payload)
         elif typ == MTP.DNLOAD_REQ:
-            self.dl_handler.handle_download()
+            print("got dnl_req")
+            print(payload.decode(MTP.encoding))
+            if self.dnl and payload.decode(MTP.encoding) == "Ready":
+                self.init_dnl(self.dnl_path)
+            elif self.dnl and payload.decode(MTP.encoding) == "Cancel":
+                self.dnl = False
+            else:
+                print("dnl_req without permission.")
+                self.transport.close()
+            print("duh")
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 120):
@@ -71,6 +80,16 @@ class Server(asyncio.Protocol, ITCP):
         self.logged_in = True
         self.MTP.send_login_res(login.LoginResponse(
             req, Random.get_random_bytes(16).hex()))
+
+    def init_dnl(self, path):
+        with open(path, 'rb') as f:
+            data = f.read()
+            n_chunks = math.ceil(len(data)/MTP.CHUNK_SIZE)
+            for i in range(n_chunks):
+                typ = MTP.DNLOAD_RES_0 if i+1 != n_chunks else MTP.DNLOAD_RES_1
+                chunk = data[i*MTP.CHUNK_SIZE:(i+1)*MTP.CHUNK_SIZE]
+                self.MTP.send_message(typ, chunk)
+        self.dnl = False
 
 
 async def main(dir):
