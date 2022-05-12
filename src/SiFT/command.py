@@ -4,6 +4,8 @@ from SiFT.mtp import MTPEntity, MTP
 from Crypto.Hash import SHA256
 from base64 import b64decode, b64encode
 
+from upload import Uploader
+
 
 def base64e(s: str):
     return b64encode(s.encode('ascii')).decode('ascii')
@@ -33,15 +35,17 @@ class Command:
                 ##fájlt kell megnyitni, ami a kliensen van, ez hasal el
                 file_size = str(os.path.getsize(Path(os.path.realpath(params[1]))))
                 f = open(Path(os.path.realpath(params[1])), "rb")
-
             except: 
                     print('File not exits')
             else:
                     file_content = f.read()
-                    content_hash = str(self.hash_command(file_content)) 
+
+                    hashfn = SHA256.new()
+                    hashfn.update(file_content)
+                    content_hash = hashfn.hexdigest()
+
                     data = cmd + '\n' + file_size + '\n' + content_hash ##beállítjuk a data részt.
         else: data = cmd   
-
         mtp.send_message(MTP.COMMAND_REQ, data.encode(MTP.encoding))
         self.host.cmd_handler.last_sent(data.encode(MTP.encoding))
 
@@ -343,35 +347,17 @@ class ClientCommandHandler(CommandHandler):
     """Itt végezzük el a pdu összerakást, NEM a szerver mappában vagyunk!!"""
 
     def handle_upl(self, cmd_b: bytes, l):
-        hashval = self.hash_command(cmd_b)
-        cmd_s = cmd_b.decode(MTP.encoding)
-        params = cmd_s.split('\n')
+        command_str = cmd_b.decode(MTP.encoding)
+        l = command_str.split('\n')
+        print(command_str)
+        if l[2] == 'accept':
 
-        if len(params) == 1:
-            status = 'reject'
-            resp = '\n'.join(['upl', hashval, status, 'Not enough arguments.'])
-        elif len(params) > 2:
-            status = 'reject'
-            resp = '\n'.join(['upl', hashval, status, 'Too many arguments.'])
-        elif "/" in params[1]:
-            status = 'reject'
-            resp = '\n'.join(
-                ['upl', hashval, status, 'Can only upload from current directory.'])
-        else:
-            try:
-                file_size = str(os.path.getsize(params[1]))
-                f = open(Path(os.path.realpath(self.cwd / params[1])), "rb")
-                status = 'accept'
-            except:
-                status = 'reject'
-                resp = '\n'.join(['upl', hashval, status, 'File not exits'])
-            else:
-                file_content = f.read()
-                content_hash = self.hash_command(file_content)
-                resp = '\n'.join(
-                    ['upl', hashval, status, file_size, content_hash])
-
-        return self.send(resp.encode(MTP.encoding))
+            Uploader()
+            return True
+        if l[2] == 'reject':
+            print(l[3])
+            return False
+        return True
 
     def handle_dnl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)

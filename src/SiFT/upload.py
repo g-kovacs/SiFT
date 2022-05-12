@@ -1,6 +1,6 @@
 # client side
 class Uploader:
-    def upload(self):
+    def upload(self, file_name):
         pass
 
 
