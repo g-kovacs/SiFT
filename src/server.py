@@ -2,8 +2,10 @@
 
 import asyncio
 import math
+import os
 import os.path as path
 
+from Crypto.Hash import SHA256
 from pathlib import Path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
@@ -31,7 +33,7 @@ class Server(asyncio.Protocol, ITCP):
         self.key = load_keypair(keyfile)
         self.cmd_handler = ServerCommandHandler(self, dir)
         self.logged_in = False
-
+        self.dnl = False
         self.dnl_path = None
         self.homedir = dir
 
@@ -93,9 +95,12 @@ class Server(asyncio.Protocol, ITCP):
                             f.write(data)
                         self.upl = False
                         #self.dnl_req = False
+                        
+                        #self.guard.set_result(True)
+                        f.close()
+                        self.upl_response()
                         self.upl_cache = b''
                         self.upl_target = None
-                        #self.guard.set_result(True)
                     else:
                         self.upl_cache += payload
                         return
@@ -108,7 +113,17 @@ class Server(asyncio.Protocol, ITCP):
                     self.upl_cache = b''
                     #self.guard.set_result(True)
             
-            
+
+    def upl_response(self):
+        check_lenght = os.path.getsize(self.homedir / Path(self.upl_target))
+        with open(self.homedir / Path(self.upl_target), "rb") as f: 
+            content = f.read()
+        hashfn = SHA256.new()
+        hashfn.update(content)
+        content_hash = hashfn.hexdigest()
+        data = str(check_lenght) + '\n' + str(content_hash)
+        print(data)
+        self.MTP.send_message(MTP.UPLOAD_RES, data) ##ez failel
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 120):

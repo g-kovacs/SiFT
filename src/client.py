@@ -43,6 +43,9 @@ class Client(asyncio.Protocol, ITCP):
         self.upl_ready = False
         self.upl_file = None
 
+        self.origin_length = 0
+        self.origin_content_hash = None
+
     def get_RSA(self):
         return self.key
 
@@ -100,6 +103,17 @@ class Client(asyncio.Protocol, ITCP):
                     self.dnl_req = False
                     self.dnl_cache = b''
                     self.guard.set_result(True)
+        elif typ == MTP.UPLOAD_RES:
+            self.check_rec(payload.decode(MTP.encoding))
+            self.guard.set_result(True)
+
+
+    def check_rec(self, payload: str):
+        print(payload)
+        if self.origin_content_hash != None or self.origin_length != 0:
+            print("Upload verification faild")
+            self.transport.close()
+        else: print("Sikeres upload")
 
     def send_TCP(self, data):
         self.transport.write(data)

@@ -315,6 +315,7 @@ class ServerCommandHandler(CommandHandler):
                     ['dnl', hashval, status, e.args[1]])
             except Exception as e:
                 status = 'reject'
+                print("idd a hiba")
                 resp = '\n'.join(
                     ['dnl', hashval, status, e.args[0]])
             else:
@@ -382,6 +383,7 @@ class ClientCommandHandler(CommandHandler):
     def handle_dnl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
+        print(command_str)
         if l[1] == self.last_cmd_hash:
             if l[2] == 'reject':
                 print("Download request rejected:", end="\t")
