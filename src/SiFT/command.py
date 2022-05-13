@@ -1,10 +1,11 @@
+from multiprocessing.connection import Client
 import os
 from pathlib import Path
 from SiFT.mtp import MTPEntity, MTP
 from Crypto.Hash import SHA256
 from base64 import b64decode, b64encode
 
-from upload import Uploader
+from SiFT.upload import Uploader
 
 
 
@@ -20,7 +21,7 @@ class Command:
     def __init__(self, cmd: str, host) -> None:
         self.cmd = cmd
         self.host = host
-        self.upl_file= ""
+        
 
     def execute(self):
         mtp: MTPEntity = self.host.MTP
@@ -40,15 +41,17 @@ class Command:
                 return
             try:
                 # fájlt kell megnyitni, ami a kliensen van, ez hasal el
-                file_size = str(os.path.getsize(
-                    Path(os.path.realpath(params[1]))))
-                f = open(Path(os.path.realpath(params[1])), "rb")
+                file_size = str(os.path.getsize( 
+                    self.host.homedir / Path(params[1])))
+                f = open(Path(self.host.homedir / Path(params[1])), "rb")
 
             except:
                 print('File does not exist.')
             else:
                 file_content = f.read()
                 content_hash = str(CommandHandler.hash_command(file_content))
+                self.host.upl_file = params[1]
+                
                 # beállítjuk a data részt.
                 data = cmd + '\n' + file_size + '\n' + content_hash
         else:
@@ -64,6 +67,7 @@ class Command:
 class CommandHandler:
     def __init__(self, host) -> None:
         self.host = host
+        self.upl_file = None
 
     def hash_command(command: bytes):
         hashfn = SHA256.new()
@@ -259,6 +263,14 @@ class ServerCommandHandler(CommandHandler):
             resp = '\n'.join(['dnl', hashval, status, 'Too many arguments.'])
 
         status = "accept"
+
+        if(status == "accept"):
+            self.host.upl_target = params[1]
+            self.host.upl_ready = True
+        else: 
+            self.host.upl_target = None
+            self.host.upl_ready = False
+
         resp = '\n'.join(['upl', hashval, status])
         return self.send(resp.encode(MTP.encoding))
 
@@ -357,11 +369,10 @@ class ClientCommandHandler(CommandHandler):
     def handle_upl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
-        print(command_str)
+        #print(command_str)
         if l[2] == 'accept':
-           
-            Uploader(self.host, Command().upl_file).upload()
-            
+        
+            self.host.upl_ready = True
             return True
         if l[2] == 'reject':
             print(l[3])

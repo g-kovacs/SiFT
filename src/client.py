@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from asyncore import file_dispatcher
+from distutils.command.upload import upload
+import math
 import os.path as path
 from pathlib import Path
 import asyncio
@@ -37,6 +40,9 @@ class Client(asyncio.Protocol, ITCP):
         self.drop_cnt = 0
         self.logged_in = False
 
+        self.upl_ready = False
+        self.upl_file = None
+
     def get_RSA(self):
         return self.key
 
@@ -48,8 +54,8 @@ class Client(asyncio.Protocol, ITCP):
     def data_received(self, data):
         # print('Data received: {!r}'.format(data.decode()))
         msg_info = self.MTP.dissect(data)
-        print("data rcvd")
-        print(msg_info)
+        #print("data rcvd")
+        #print(msg_info)
         if msg_info is None:        # Some error
             self.loop.stop()
         self.handle_message(*msg_info)
@@ -63,6 +69,9 @@ class Client(asyncio.Protocol, ITCP):
                 self.guard.set_result(True)
         elif typ == MTP.COMMAND_RES:
             self.cmd_handler.handle(payload)
+            if self.upl_ready:
+                self.upload(self.upl_file)
+                print("HELLO")
             self.guard.set_result(True)
         elif typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
             if not self.drop:
@@ -129,6 +138,16 @@ class Client(asyncio.Protocol, ITCP):
         print(login_req.rnd)
         self.MTP.send_login_req(login_req, self.key)
 
+    def upload(self, file_name: str):
+        with open(self.homedir / Path(file_name), 'rb') as f:
+            data = f.read()
+            n_chunks = math.ceil(len(data)/MTP.CHUNK_SIZE)
+            for i in range(n_chunks):
+                typ = MTP.UPLOAD_REQ_0 if i+1 != n_chunks else MTP.UPLOAD_REQ_1
+                chunk = data[i*MTP.CHUNK_SIZE:(i+1)*MTP.CHUNK_SIZE]
+                self.MTP.send_message(typ, chunk)
+        self.upl_ready = False
+        
 
 async def main(client: Client):
     await client.guard

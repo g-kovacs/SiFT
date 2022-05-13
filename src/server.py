@@ -3,6 +3,8 @@
 import asyncio
 import math
 import os.path as path
+
+from pathlib import Path
 from SiFT.mtp import ServerMTP, MTP, ITCP
 from Crypto import Random
 import SiFT.login as login
@@ -29,8 +31,17 @@ class Server(asyncio.Protocol, ITCP):
         self.key = load_keypair(keyfile)
         self.cmd_handler = ServerCommandHandler(self, dir)
         self.logged_in = False
-        self.dnl = False
+
         self.dnl_path = None
+        self.homedir = dir
+
+        self.upl_ready = False
+
+        self.upl_req = False
+        self.upl_cache = b''
+        self.upl_target = None
+        self.drop = False
+        self.drop_cnt = 0
 
     def get_RSA(self):
         return self.key
@@ -69,10 +80,34 @@ class Server(asyncio.Protocol, ITCP):
                 print("dnl_req without permission.")
                 self.transport.close()
             print("duh")
-        elif typ == MTP.UPLOAD_REQ_0:
-            self.ul_handler.handle_upload()
-        elif typ == MTP.UPLOAD_REQ_1:
-            self.ul_handler.data_recieved()
+        elif typ == MTP.UPLOAD_REQ_0 or typ == MTP.UPLOAD_REQ_1:
+            if not self.drop: 
+                if not self.upl_ready:
+                    print("upl not possible")
+                    self.transport.close()
+                    self.loop.stop()
+                else:
+                    if typ == MTP.UPLOAD_REQ_1:
+                        data = self.upl_cache + payload
+                        with open(self.homedir / Path(self.upl_target), "wb") as f:
+                            f.write(data)
+                        self.upl = False
+                        #self.dnl_req = False
+                        self.upl_cache = b''
+                        self.upl_target = None
+                        #self.guard.set_result(True)
+                    else:
+                        self.upl_cache += payload
+                        return
+            else:
+                self.drop_cnt += 1
+                if self.drop_cnt <= 1:
+                    self.dnl = False
+                    self.upl_target = False
+                    #self.dnl_req = False
+                    self.upl_cache = b''
+                    #self.guard.set_result(True)
+            
             
 
     def handle_login_req(self, req: login.LoginRequest):
