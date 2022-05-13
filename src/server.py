@@ -60,6 +60,10 @@ class Server(asyncio.Protocol, ITCP):
             self.cmd_handler.handle(msg_info[1])
         elif typ == MTP.DNLOAD_REQ:
             self.dl_handler.handle_download()
+        elif typ == MTP.UPLOAD_REQ_0:
+            self.ul_handler.handle_upload()
+        elif typ == MTP.UPLOAD_REQ_1:
+            self.ul_handler.data_recieved()
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 120):

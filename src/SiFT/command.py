@@ -7,6 +7,7 @@ from base64 import b64decode, b64encode
 from upload import Uploader
 
 
+
 def base64e(s: str):
     return b64encode(s.encode('ascii')).decode('ascii')
 
@@ -19,6 +20,7 @@ class Command:
     def __init__(self, cmd: str, host) -> None:
         self.cmd = cmd
         self.host = host
+        self.upl_file= ""
 
     def execute(self):
         mtp: MTPEntity = self.host.MTP
@@ -43,7 +45,7 @@ class Command:
                     hashfn = SHA256.new()
                     hashfn.update(file_content)
                     content_hash = hashfn.hexdigest()
-
+                    self.upl_file = params[1]
                     data = cmd + '\n' + file_size + '\n' + content_hash ##beállítjuk a data részt.
         else: data = cmd   
         mtp.send_message(MTP.COMMAND_REQ, data.encode(MTP.encoding))
@@ -254,10 +256,6 @@ class ServerCommandHandler(CommandHandler):
         elif len(params) > 2:
             status = 'reject'
             resp = '\n'.join(['dnl', hashval, status, 'Too many arguments.'])
-        elif "/" in params[1]:
-            status = 'reject'
-            resp = '\n'.join(
-            ['dnl', hashval, status, 'Can only download from current directory.'])
 
         status = "accept"
         resp = '\n'.join(['upl', hashval, status])
@@ -305,6 +303,7 @@ class ClientCommandHandler(CommandHandler):
     def __init__(self, host, dir) -> None:
         super().__init__(host)
         self.dir = Path(dir)
+        self.host = host
 
     def handle_pwd(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
@@ -344,15 +343,14 @@ class ClientCommandHandler(CommandHandler):
             print(l[3])
         return True
 
-    """Itt végezzük el a pdu összerakást, NEM a szerver mappában vagyunk!!"""
-
     def handle_upl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
         print(command_str)
         if l[2] == 'accept':
-
-            Uploader()
+           
+            Uploader(self.host, Command().upl_file).upload()
+            
             return True
         if l[2] == 'reject':
             print(l[3])
