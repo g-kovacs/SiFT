@@ -26,28 +26,34 @@ class Command:
         mtp: MTPEntity = self.host.MTP
         cmd = self.cmd.strip().replace(' ', '\n')
 
-        ##bemente felbontésa
+        # bemente felbontésa
         params = cmd.split('\n')
+        if(params[0] == 'dnl'):
+            self.host.dnl_target = Path(params[1])
+
         if(params[0] == 'upl'):
             if len(params) == 1:
                 print('Not enough arguments.')
+                return
             elif len(params) > 2:
                 print('Too many arguments.')
+                return
             try:
-                ##fájlt kell megnyitni, ami a kliensen van, ez hasal el
-                file_size = str(os.path.getsize(Path(os.path.realpath(params[1]))))
+                # fájlt kell megnyitni, ami a kliensen van, ez hasal el
+                file_size = str(os.path.getsize(
+                    Path(os.path.realpath(params[1]))))
                 f = open(Path(os.path.realpath(params[1])), "rb")
-            except: 
-                    print('File not exits')
-            else:
-                    file_content = f.read()
 
-                    hashfn = SHA256.new()
-                    hashfn.update(file_content)
-                    content_hash = hashfn.hexdigest()
-                    self.upl_file = params[1]
-                    data = cmd + '\n' + file_size + '\n' + content_hash ##beállítjuk a data részt.
-        else: data = cmd   
+            except:
+                print('File does not exist.')
+            else:
+                file_content = f.read()
+                content_hash = str(CommandHandler.hash_command(file_content))
+                # beállítjuk a data részt.
+                data = cmd + '\n' + file_size + '\n' + content_hash
+        else:
+            data = cmd
+
         mtp.send_message(MTP.COMMAND_REQ, data.encode(MTP.encoding))
         self.host.cmd_handler.last_sent(data.encode(MTP.encoding))
 
@@ -59,14 +65,14 @@ class CommandHandler:
     def __init__(self, host) -> None:
         self.host = host
 
-    def hash_command(self, command: bytes):
+    def hash_command(command: bytes):
         hashfn = SHA256.new()
         hashfn.update(command)
         hashval = hashfn.hexdigest()
         return hashval
 
     def last_sent(self, cmd: bytes):
-        self.last_cmd_hash = self.hash_command(cmd)
+        self.last_cmd_hash = CommandHandler.hash_command(cmd)
 
     def send(self, data: bytes):
         mtp: MTPEntity = self.host.MTP
@@ -130,7 +136,7 @@ class ServerCommandHandler(CommandHandler):
 
     def handle_pwd(self, cmd_b: bytes, l):
         cmd_s = cmd_b.decode(MTP.encoding)
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         params = cmd_s.split('\n')
         path = "/"
         path += self.cwd.name if self.cwd == self.rootdir else str(
@@ -148,7 +154,7 @@ class ServerCommandHandler(CommandHandler):
     def handle_lst(self, cmd_b: bytes, l):
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         status = 'success'
         ls = '\t'.join(os.listdir(str(self.cwd)))
         enc_ls = base64e(ls)
@@ -161,7 +167,7 @@ class ServerCommandHandler(CommandHandler):
 
     def handle_chd(self, cmd_b: bytes, l):
 
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
         try:
@@ -172,7 +178,7 @@ class ServerCommandHandler(CommandHandler):
             os.chdir(self.cwd / params[1])
         except Exception as e:
             status = "failure"
-            resp = '\n'.join(['chd', hashval, status, e.args[0]])
+            resp = '\n'.join(['chd', hashval, status, e.args[1]])
         else:
             self.cwd = Path(os.getcwd())
             status = 'success'
@@ -181,7 +187,7 @@ class ServerCommandHandler(CommandHandler):
         return self.send(resp.encode(MTP.encoding))
 
     def handle_mkd(self, cmd_b: bytes, l):
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
 
@@ -202,18 +208,13 @@ class ServerCommandHandler(CommandHandler):
             os.mkdir(os.path.realpath(self.cwd / params[1]))
 
         return self.send(resp.encode(MTP.encoding))
-        
+
     def handle_del(self, cmd_b: bytes, l):
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
 
         if len(params) == 1:
-            status = 'failure'
-            resp = '\n'.join(['del', hashval, status, 'Not enough arguments.'])
-        elif len(params) > 2:
-            status = 'failure'
-            resp = '\n'.join(['del', hashval, status, 'Too many arguments.'])
             status = 'failure'
             resp = '\n'.join(['del', hashval, status, 'Not enough arguments.'])
         elif len(params) > 2:
@@ -247,7 +248,7 @@ class ServerCommandHandler(CommandHandler):
 
     def handle_upl(self, cmd_b: bytes, l):
         cmd_s = cmd_b.decode(MTP.encoding)
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         params = cmd_s.split('\n')
 
         if len(params) == 1:
@@ -266,7 +267,7 @@ class ServerCommandHandler(CommandHandler):
     # egy reject után kilép a kliens
 
     def handle_dnl(self, cmd_b: bytes, l):
-        hashval = self.hash_command(cmd_b)
+        hashval = CommandHandler.hash_command(cmd_b)
         cmd_s = cmd_b.decode(MTP.encoding)
         params = cmd_s.split('\n')
 
@@ -279,22 +280,38 @@ class ServerCommandHandler(CommandHandler):
         elif "/" in params[1]:
             status = 'reject'
             resp = '\n'.join(
-                ['dnl', hashval, status, 'Can only download from current directory.'])
+                ['dnl', hashval, status, 'Can only download from current working directory.'])
         else:
             try:
-                file_size = str(os.path.getsize(
-                    Path(os.path.realpath(self.cwd / params[1]))))
-                print(file_size)
-                f = open(Path(os.path.realpath(self.cwd / params[1])), "rb")
+                path = Path(os.path.realpath(self.cwd / params[1]))
+                if path.is_dir():
+                    raise Exception(
+                        "Directory download is not supported in this version.")
+                if self.rootdir not in path.parents:
+                    raise Exception("File outside of root directory.")
+                file_size = str(os.path.getsize(path))
+                f = open(path, 'rb')
+                print(f'file name: {path}')
+                print(f'file size: {file_size}')
                 status = 'accept'
-            except:
+                print(self.host.dnl)
+                self.host.dnl = True
+                print(self.host.dnl)
+            except FileNotFoundError as e:
                 status = 'reject'
-                resp = '\n'.join(['dnl', hashval, status, 'File not exits'])
+                resp = '\n'.join(
+                    ['dnl', hashval, status, e.args[1]])
+            except Exception as e:
+                status = 'reject'
+                resp = '\n'.join(
+                    ['dnl', hashval, status, e.args[0]])
             else:
                 file_content = f.read()
-                content_hash = self.hash_command(file_content)
+                content_hash = CommandHandler.hash_command(file_content)
                 resp = '\n'.join(
                     ['dnl', hashval, status, file_size, content_hash])
+                self.host.dnl_path = path
+                f.close()
 
         return self.send(resp.encode(MTP.encoding))
 
@@ -308,22 +325,18 @@ class ClientCommandHandler(CommandHandler):
     def handle_pwd(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
-        if l[1] != self.last_cmd_hash:
-            return False
-        print(l[3])
-        return True
+        if l[1] == self.last_cmd_hash:
+            print(l[3])
 
     def handle_lst(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
-        if l[1] != self.last_cmd_hash:
-            return False
-        if l[2] != 'success':
-            print(l[3])
-        ls = base64d(l[3]).split('\t')
-        for p in ls:
-            print(p)
-        return True
+        if l[1] == self.last_cmd_hash:
+            if l[2] != 'success':
+                print(l[3])
+            ls = base64d(l[3]).split('\t')
+            for p in ls:
+                print(p)
 
     def handle_chd(self, cmd_b: bytes, l):
         return self._handle_chd_mkd_del(cmd_b, l)
@@ -337,11 +350,9 @@ class ClientCommandHandler(CommandHandler):
     def _handle_chd_mkd_del(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
-        if l[1] != self.last_cmd_hash:
-            return False
-        if l[2] == 'failure':
-            print(l[3])
-        return True
+        if l[1] == self.last_cmd_hash:
+            if l[2] != 'success':
+                print(l[3])
 
     def handle_upl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
@@ -360,11 +371,14 @@ class ClientCommandHandler(CommandHandler):
     def handle_dnl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
-        if l[1] != self.last_cmd_hash:
-            return False
-        if l[2] == 'reject':
-            print(l[3])
-            return False
-        print(l[3])
-        print(l[4])
-        return True
+        if l[1] == self.last_cmd_hash:
+            if l[2] == 'reject':
+                print("Download request rejected:", end="\t")
+                print(l[3])
+                return
+            size = l[3]
+            hash = l[1]
+            print(f"File size: {size} (bytes)")
+            print(f"Hash: {hash}")
+            print("Continue downloading? (yes/no)")
+            self.host.dnl_req = True

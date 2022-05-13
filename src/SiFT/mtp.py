@@ -30,6 +30,7 @@ class MTP:
     DNLOAD_REQ = b'\x03\x00'
     DNLOAD_RES_0 = b'\x03\x10'
     DNLOAD_RES_1 = b'\x03\x11'
+    CHUNK_SIZE = 1024
 
     def create_header(typ: bytes, len: int, sqn: int, rnd: bytes) -> bytes:
         header = MTP.version + typ
@@ -62,6 +63,7 @@ class MTPEntity():
             important info are returned."""
 
         if not MTP.verify(msg):
+            self.host.drop = True
             return (None,)*3
         ret = self.check_integrity(msg)
         if ret is None:
@@ -102,6 +104,8 @@ class MTPEntity():
             AE.update(header)
             payload = AE.decrypt_and_verify(encr_payload, authtag)
         except Exception as e:
+            if typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
+                self.host.drop = True
             print("Integrity check failed, droppping packet.")
             return None
         self.rcvd_sqn = sqn
@@ -134,8 +138,8 @@ class ClientMTP(MTPEntity):
 
     def dissect(self, msg: bytes):
         typ, header, payload = super().dissect(msg)
-        data = payload.decode(MTP.encoding).split('\n')
         if typ == MTP.LOGIN_RES:
+            data = payload.decode(MTP.encoding).split('\n')
             rh = data[0]
             if rh != self.login_hash:
                 return None
@@ -143,9 +147,7 @@ class ClientMTP(MTPEntity):
             self.key = HKDF(self.rnd + srand, 32,
                             bytes.fromhex(rh), SHA256)
             del self.rnd
-            return (typ,)
-        else:
-            return (typ, payload)
+        return typ, header, payload
 
     def send_login_req(self, req: LoginRequest, rsakey):
         data = req.get_request()
@@ -173,14 +175,6 @@ class ClientMTP(MTPEntity):
 class ServerMTP(MTPEntity):
     def __init__(self, server) -> None:
         super().__init__(server)
-
-    def dissect(self, msg: bytes):
-        typ, _, payload = super().dissect(msg)
-
-        if typ == MTP.LOGIN_REQ:
-            return (typ, LoginRequest.from_bytes(payload))
-        elif typ == MTP.COMMAND_REQ:
-            return (typ, payload)
 
     def send_login_res(self, res: LoginResponse):
         hashfn = SHA256.new()
