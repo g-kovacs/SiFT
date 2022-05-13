@@ -84,11 +84,12 @@ class Client(asyncio.Protocol, ITCP):
                         self.dnl_cache += payload
                         return
             else:
-                self.dnl = False
-                self.dnl_target = False
-                self.dnl_req = False
                 self.drop_cnt += 1
                 if self.drop_cnt <= 1:
+                    self.dnl = False
+                    self.dnl_target = False
+                    self.dnl_req = False
+                    self.dnl_cache = b''
                     self.guard.set_result(True)
 
     def send_TCP(self, data):
