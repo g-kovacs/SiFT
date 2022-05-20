@@ -8,7 +8,6 @@ from base64 import b64decode, b64encode
 from SiFT.upload import Uploader
 
 
-
 def base64e(s: str):
     return b64encode(s.encode('ascii')).decode('ascii')
 
@@ -21,7 +20,6 @@ class Command:
     def __init__(self, cmd: str, host) -> None:
         self.cmd = cmd
         self.host = host
-        
 
     def execute(self):
         mtp: MTPEntity = self.host.MTP
@@ -41,7 +39,7 @@ class Command:
                 return
             try:
                 # fájlt kell megnyitni, ami a kliensen van, ez hasal el
-                file_size = str(os.path.getsize( 
+                file_size = str(os.path.getsize(
                     self.host.homedir / Path(params[1])))
                 f = open(Path(self.host.homedir / Path(params[1])), "rb")
 
@@ -49,11 +47,13 @@ class Command:
                 print('File does not exist.')
             else:
                 file_content = f.read()
-                content_hash = str(CommandHandler.hash_command(file_content))
+                content_hash = CommandHandler.hash_command(file_content)
                 self.host.upl_file = params[1]
-                
+
                 # beállítjuk a data részt.
                 data = cmd + '\n' + file_size + '\n' + content_hash
+                self.host.origin_length = file_size
+                self.host.origin_content_hash = content_hash
         else:
             data = cmd
 
@@ -182,7 +182,7 @@ class ServerCommandHandler(CommandHandler):
             os.chdir(self.cwd / params[1])
         except Exception as e:
             status = "failure"
-            resp = '\n'.join(['chd', hashval, status, e.args[1]])
+            resp = '\n'.join(['chd', hashval, status, e.args[0]])
         else:
             self.cwd = Path(os.getcwd())
             status = 'success'
@@ -267,7 +267,8 @@ class ServerCommandHandler(CommandHandler):
         if(status == "accept"):
             self.host.upl_target = params[1]
             self.host.upl_ready = True
-        else: 
+            self.host.drop = False
+        else:
             self.host.upl_target = None
             self.host.upl_ready = False
 
@@ -370,9 +371,9 @@ class ClientCommandHandler(CommandHandler):
     def handle_upl(self, cmd_b: bytes, l):
         command_str = cmd_b.decode(MTP.encoding)
         l = command_str.split('\n')
-        #print(command_str)
+        # print(command_str)
         if l[2] == 'accept':
-        
+
             self.host.upl_ready = True
             return True
         if l[2] == 'reject':

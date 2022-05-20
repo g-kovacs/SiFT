@@ -58,7 +58,7 @@ class Client(asyncio.Protocol, ITCP):
         # print('Data received: {!r}'.format(data.decode()))
         msg_info = self.MTP.dissect(data)
         #print("data rcvd")
-        #print(msg_info)
+        # print(msg_info)
         if msg_info is None:        # Some error
             self.loop.stop()
         self.handle_message(*msg_info)
@@ -74,7 +74,6 @@ class Client(asyncio.Protocol, ITCP):
             self.cmd_handler.handle(payload)
             if self.upl_ready:
                 self.upload(self.upl_file)
-                print("HELLO")
             self.guard.set_result(True)
         elif typ in [MTP.DNLOAD_RES_0, MTP.DNLOAD_RES_1]:
             if not self.drop:
@@ -87,6 +86,7 @@ class Client(asyncio.Protocol, ITCP):
                         data = self.dnl_cache + payload
                         with open(self.homedir / self.dnl_target, "wb") as f:
                             f.write(data)
+                        print("Download successful.")
                         self.dnl = False
                         self.dnl_req = False
                         self.dnl_cache = b''
@@ -98,6 +98,7 @@ class Client(asyncio.Protocol, ITCP):
             else:
                 self.drop_cnt += 1
                 if self.drop_cnt <= 1:
+                    print("Download failed.")
                     self.dnl = False
                     self.dnl_target = False
                     self.dnl_req = False
@@ -105,15 +106,15 @@ class Client(asyncio.Protocol, ITCP):
                     self.guard.set_result(True)
         elif typ == MTP.UPLOAD_RES:
             self.check_rec(payload.decode(MTP.encoding))
-            self.guard.set_result(True)
-
 
     def check_rec(self, payload: str):
-        print(payload)
-        if self.origin_content_hash != None or self.origin_length != 0:
-            print("Upload verification faild")
+        hash, length = payload.split('\n')
+        if str(self.origin_content_hash) != hash:
+            print("Fail: wrong hash")
             self.transport.close()
-        else: print("Sikeres upload")
+        if str(self.origin_length) != length:
+            print("Fail: wrong file size")
+            self.transport.close()
 
     def send_TCP(self, data):
         self.transport.write(data)
@@ -161,7 +162,7 @@ class Client(asyncio.Protocol, ITCP):
                 chunk = data[i*MTP.CHUNK_SIZE:(i+1)*MTP.CHUNK_SIZE]
                 self.MTP.send_message(typ, chunk)
         self.upl_ready = False
-        
+
 
 async def main(client: Client):
     await client.guard

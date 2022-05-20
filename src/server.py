@@ -83,7 +83,7 @@ class Server(asyncio.Protocol, ITCP):
                 self.transport.close()
             print("duh")
         elif typ == MTP.UPLOAD_REQ_0 or typ == MTP.UPLOAD_REQ_1:
-            if not self.drop: 
+            if not self.drop:
                 if not self.upl_ready:
                     print("upl not possible")
                     self.transport.close()
@@ -94,9 +94,6 @@ class Server(asyncio.Protocol, ITCP):
                         with open(self.homedir / Path(self.upl_target), "wb") as f:
                             f.write(data)
                         self.upl = False
-                        #self.dnl_req = False
-                        
-                        #self.guard.set_result(True)
                         f.close()
                         self.upl_response()
                         self.upl_cache = b''
@@ -108,22 +105,19 @@ class Server(asyncio.Protocol, ITCP):
                 self.drop_cnt += 1
                 if self.drop_cnt <= 1:
                     self.dnl = False
-                    self.upl_target = False
-                    #self.dnl_req = False
+                    self.upl_target = None
                     self.upl_cache = b''
-                    #self.guard.set_result(True)
-            
 
     def upl_response(self):
         check_lenght = os.path.getsize(self.homedir / Path(self.upl_target))
-        with open(self.homedir / Path(self.upl_target), "rb") as f: 
+        with open(self.homedir / Path(self.upl_target), "rb") as f:
             content = f.read()
         hashfn = SHA256.new()
         hashfn.update(content)
         content_hash = hashfn.hexdigest()
-        data = str(check_lenght) + '\n' + str(content_hash)
-        print(data)
-        self.MTP.send_message(MTP.UPLOAD_RES, data) ##ez failel
+        data = content_hash + '\n' + str(check_lenght)
+        self.MTP.send_message(
+            MTP.UPLOAD_RES, data.encode(MTP.encoding))
 
     def handle_login_req(self, req: login.LoginRequest):
         if not req.valid_timestamp(time_ns(), 120):
